@@ -1,0 +1,2 @@
+# Keep the Node vector recorder out of GitHub language stats.
+*.mjs linguist-detectable=false
