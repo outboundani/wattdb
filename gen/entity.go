@@ -185,6 +185,33 @@ func (e *entity) assignNames() error {
 		}
 		return nil
 	}
+	// Descriptors: one per root attribute, plus flattened names for map
+	// properties (ProfileDisplayName), and a descriptor struct per map type.
+	var claimDescs func(a *attribute, flat string) error
+	claimDescs = func(a *attribute, flat string) error {
+		if err := claim(flat, a.Path+" (descriptor)"); err != nil {
+			return err
+		}
+		if a.Kind == attr.KindMap {
+			if err := claim(a.TypeName+"Attr", a.Path+" (descriptor type)"); err != nil {
+				return err
+			}
+			for _, p := range a.Props {
+				if p.GoName == "Attr" {
+					return fmt.Errorf("entity %q: map property %s can't be named Attr", e.Name, p.Path)
+				}
+				if err := claimDescs(p, flat+p.GoName); err != nil {
+					return err
+				}
+			}
+		}
+		if a.Kind == attr.KindList && a.Items != nil && a.Items.Kind == attr.KindMap {
+			if err := claimItemMaps(claim, a.Items); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	fields := map[string]bool{}
 	for i, a := range e.Attrs {
 		if err := checkIdent(e.Name, a.GoName, ""); err != nil {
@@ -197,6 +224,27 @@ func (e *entity) assignNames() error {
 			return fmt.Errorf("entity %q: attribute %s is defined twice", e.Name, a.GoName)
 		}
 		fields[a.GoName] = true
+	}
+	for _, a := range e.Attrs {
+		if err := claimDescs(a, a.GoName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// claimItemMaps claims the descriptor struct names of a list item map and
+// the maps nested in it.
+func claimItemMaps(claim func(name, path string) error, a *attribute) error {
+	if err := claim(a.TypeName+"Attr", a.Path+" (descriptor type)"); err != nil {
+		return err
+	}
+	for _, p := range a.Props {
+		if p.Kind == attr.KindMap {
+			if err := claimItemMaps(claim, p); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

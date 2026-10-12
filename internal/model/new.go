@@ -58,6 +58,7 @@ func New(def Definition) (*Model, error) {
 		return nil, err
 	}
 	m.applyLabels()
+	m.indexPaths()
 	return m, nil
 }
 
@@ -322,6 +323,7 @@ func (m *Model) normalizeIndexes(defs []IndexDef) error {
 			return err
 		}
 		pk.Casing = resolveCasing(d.PK.Casing)
+		pk.WrittenCasing = d.PK.Casing
 		ix.PK = pk
 		if ix.HasSK {
 			sk, err := m.keyComposites(pattern, *d.SK, SK)
@@ -329,6 +331,7 @@ func (m *Model) normalizeIndexes(defs []IndexDef) error {
 				return err
 			}
 			sk.Casing = resolveCasing(d.SK.Casing)
+			sk.WrittenCasing = d.SK.Casing
 			ix.SK = sk
 			if len(sk.Composites) > 1 {
 				for _, c := range pk.Composites {
@@ -451,6 +454,12 @@ func (m *Model) checkKeyFieldAttributes() error {
 					} else {
 						a.KeyPostfix = l.Label
 					}
+				}
+				switch Casing(k.WrittenCasing) {
+				case Lower, Upper:
+					a.KeyCasing = Casing(k.WrittenCasing)
+				default:
+					a.KeyCasing = ""
 				}
 				if hasFixings && a.Type != TypeString && a.Type != TypeEnum {
 					return fmt.Errorf("index %s: key field %q has a prefix or postfix, so attribute %q must be a string or enum", display, k.Field, a.Name)

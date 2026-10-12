@@ -201,6 +201,153 @@ func register(s wattdb.Schema) (*wattdb.EntityDef, error) {
 	return wattdb.Compile(s, h)
 }
 
+// Client reads and writes doc items in one table.
+type Client struct {
+	t *wattdb.Table[Doc, Partial]
+}
+
+// New returns a client for the doc items in table. db/runtime must be
+// imported, so the schema's callbacks are registered.
+func New(cfg *wattdb.Config, table string) (*Client, error) {
+	d, err := entityDef()
+	if err != nil {
+		return nil, err
+	}
+	t, err := wattdb.NewTable(cfg, d, table, decodeDoc, decodePartial)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{t: t}, nil
+}
+
+// Get reads one item; a missing item is wattdb.ErrNotFound.
+func (c *Client) Get(k Key) *wattdb.Get[Doc, Partial] {
+	return c.t.Get(k.encode())
+}
+
+// Put writes a whole item, replacing any existing one.
+func (c *Client) Put(in Input) *wattdb.Put[Doc, Partial] {
+	return c.t.Put(in.encode())
+}
+
+// Create writes a new item, failing with wattdb.ErrConditionFailed if it exists.
+func (c *Client) Create(in Input) *wattdb.Put[Doc, Partial] {
+	return c.t.Create(in.encode())
+}
+
+// Delete deletes one item.
+func (c *Client) Delete(k Key) *wattdb.Delete[Doc, Partial] {
+	return c.t.Delete(k.encode())
+}
+
+// Remove deletes one item, failing with wattdb.ErrConditionFailed if it doesn't exist.
+func (c *Client) Remove(k Key) *wattdb.Delete[Doc, Partial] {
+	return c.t.Remove(k.encode())
+}
+
+// Update changes attributes of one item, creating it if needed.
+func (c *Client) Update(k Key) *wattdb.Update[Doc, Partial] {
+	return c.t.Update(k.encode())
+}
+
+// Patch changes attributes of one item, failing with wattdb.ErrConditionFailed if it doesn't exist.
+func (c *Client) Patch(k Key) *wattdb.Update[Doc, Partial] {
+	return c.t.Patch(k.encode())
+}
+
+// Upsert writes in's attributes, creating the item if needed; chain more
+// operations before Exec.
+func (c *Client) Upsert(in Input) *wattdb.Upsert[Doc, Partial] {
+	m, err := in.encode()
+	return c.t.Upsert(m, inputOrder, err)
+}
+
+var inputOrder = []string{"docId", "code", "t", "count", "done", "kind", "status", "tags", "scores", "meta", "opts", "steps", "notes", "blob", "summary", "secret"}
+
+// Descriptors, for conditions and updates. Map properties also have
+// flattened names (ProfileDisplayName for Profile.DisplayName).
+var (
+	DocID         = wattdb.NewAttr[Doc, string]([]string{"docId"}, wire.EncodeString)
+	Code          = wattdb.NewAttr[Doc, string]([]string{"code"}, wire.EncodeString)
+	Title         = wattdb.NewAttr[Doc, string]([]string{"t"}, wire.EncodeString)
+	Count         = wattdb.NewNumberAttr[Doc, int]([]string{"count"}, wire.EncodeInt[int])
+	Done          = wattdb.NewAttr[Doc, bool]([]string{"done"}, wire.EncodeBool)
+	Kind          = wattdb.NewAttr[Doc, KindEnum]([]string{"kind"}, wire.EncodeEnum[KindEnum])
+	Status        = wattdb.NewAttr[Doc, string]([]string{"status"}, wire.EncodeString)
+	Tags          = wattdb.NewSetAttr[Doc, string]([]string{"tags"}, wire.EncodeStringSet[string], wire.EncodeEnum[string])
+	Scores        = wattdb.NewSetAttr[Doc, float64]([]string{"scores"}, wire.EncodeNumberSet[float64], wire.EncodeNumber[float64])
+	Meta          = newMetaMapAttr([]string{"meta"})
+	MetaSource    = Meta.Source
+	MetaRank      = Meta.Rank
+	MetaInner     = Meta.Inner
+	MetaInnerDeep = MetaInner.Deep
+	Opts          = newOptsMapAttr([]string{"opts"})
+	OptsA         = Opts.A
+	Steps         = wattdb.NewListAttr[Doc, StepMap, StepMapAttr]([]string{"steps"}, wire.ListEncoder[StepMap](encodeStepMap), encodeStepMap, func(p []string) StepMapAttr { return newStepMapAttr(p) })
+	Notes         = wattdb.NewListAttr[Doc, string, wattdb.Attr[Doc, string]]([]string{"notes"}, wire.ListEncoder[string](wire.EncodeString), wire.EncodeString, func(p []string) wattdb.Attr[Doc, string] { return wattdb.NewAttr[Doc, string](p, wire.EncodeString) })
+	Blob          = wattdb.NewAttr[Doc, any]([]string{"blob"}, wire.EncodeAny)
+	Summary       = wattdb.NewAttr[Doc, string]([]string{"summary"}, wire.EncodeString)
+	Secret        = wattdb.NewAttr[Doc, string]([]string{"secret"}, wire.EncodeString)
+)
+
+// MetaMapAttr describes the Meta map and its properties.
+type MetaMapAttr struct {
+	wattdb.Attr[Doc, MetaMap]
+	Source wattdb.Attr[Doc, string]
+	Rank   wattdb.NumberAttr[Doc, int]
+	Inner  MetaInnerMapAttr
+}
+
+func newMetaMapAttr(p []string) MetaMapAttr {
+	return MetaMapAttr{
+		Attr:   wattdb.NewAttr[Doc, MetaMap](p, encodeMetaMap),
+		Source: wattdb.NewAttr[Doc, string](wattdb.SubPath(p, "source"), wire.EncodeString),
+		Rank:   wattdb.NewNumberAttr[Doc, int](wattdb.SubPath(p, "r"), wire.EncodeInt[int]),
+		Inner:  newMetaInnerMapAttr(wattdb.SubPath(p, "inner")),
+	}
+}
+
+// MetaInnerMapAttr describes the Meta.Inner map and its properties.
+type MetaInnerMapAttr struct {
+	wattdb.Attr[Doc, MetaInnerMap]
+	Deep wattdb.Attr[Doc, string]
+}
+
+func newMetaInnerMapAttr(p []string) MetaInnerMapAttr {
+	return MetaInnerMapAttr{
+		Attr: wattdb.NewAttr[Doc, MetaInnerMap](p, encodeMetaInnerMap),
+		Deep: wattdb.NewAttr[Doc, string](wattdb.SubPath(p, "d"), wire.EncodeString),
+	}
+}
+
+// OptsMapAttr describes the Opts map and its properties.
+type OptsMapAttr struct {
+	wattdb.Attr[Doc, OptsMap]
+	A wattdb.Attr[Doc, string]
+}
+
+func newOptsMapAttr(p []string) OptsMapAttr {
+	return OptsMapAttr{
+		Attr: wattdb.NewAttr[Doc, OptsMap](p, encodeOptsMap),
+		A:    wattdb.NewAttr[Doc, string](wattdb.SubPath(p, "a"), wire.EncodeString),
+	}
+}
+
+// StepMapAttr describes the Steps[*] map and its properties.
+type StepMapAttr struct {
+	wattdb.Attr[Doc, StepMap]
+	Name wattdb.Attr[Doc, string]
+	OK   wattdb.Attr[Doc, bool]
+}
+
+func newStepMapAttr(p []string) StepMapAttr {
+	return StepMapAttr{
+		Attr: wattdb.NewAttr[Doc, StepMap](p, encodeStepMap),
+		Name: wattdb.NewAttr[Doc, string](wattdb.SubPath(p, "n"), wire.EncodeString),
+		OK:   wattdb.NewAttr[Doc, bool](wattdb.SubPath(p, "ok"), wire.EncodeBool),
+	}
+}
+
 func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
 	m := map[string]ddbtypes.AttributeValue{}
 	{

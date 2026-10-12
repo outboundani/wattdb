@@ -1,0 +1,334 @@
+{
+  "description": "Single-item operations: get/put/create/delete/remove/update/patch/upsert with conditions, every update operation, key maintenance, sparse indexes, response modes and condition-failure returns.",
+  "entities": {
+    "item": {
+      "model": {"entity":"item","version":"1","service":"taskapp"},
+      "attributes": {
+        "orgId": {"type":"string","required":true},
+        "itemId": {"type":"string","required":true},
+        "title": {"type":"string","required":true},
+        "status": {"type":["open","closed"],"required":true,"default":"open"},
+        "createdAt": {"type":"string"},
+        "ownerId": {"type":"string"},
+        "createdBy": {"type":"string","readOnly":true},
+        "count": {"type":"number"},
+        "tags": {"type":"set","items":"string"},
+        "history": {"type":"list","items":{"type":"string"}},
+        "meta": {"type":"map","properties":{"a":{"type":"string"},"b":{"type":"number"}}},
+        "blob": {"type":"any"}
+      },
+      "indexes": {
+        "primary": {"pk":{"field":"pk","composite":["orgId"]},"sk":{"field":"sk","composite":["itemId"]}},
+        "byStatus": {
+          "index": "gsi1",
+          "pk": {"field":"gsi1pk","composite":["orgId"]},
+          "sk": {"field":"gsi1sk","composite":["status","createdAt"]}
+        },
+        "byOwner": {
+          "index": "gsi2",
+          "condition": {"$fn":"has","args":["ownerId"]},
+          "pk": {"field":"gsi2pk","composite":["ownerId"]},
+          "sk": {"field":"gsi2sk","composite":[]}
+        }
+      }
+    }
+  },
+  "cases": [
+    {"name":"get","entity":"item","chain":[["get",{"orgId":"O1","itemId":"I1"}]]},
+    {
+      "name": "get with attributes and consistent read",
+      "entity": "item",
+      "chain": [["get",{"orgId":"O1","itemId":"I1"}]],
+      "params": {"attributes":["title","count"],"consistent":true},
+      "go": {"attributes":["title","count"],"consistent":true}
+    },
+    {
+      "name": "get from another table",
+      "entity": "item",
+      "chain": [["get",{"orgId":"O1","itemId":"I1"}]],
+      "params": {"table":"other"},
+      "go": {"table":"other"}
+    },
+    {"name":"get missing a composite","entity":"item","chain":[["get",{"orgId":"O1"}]]},
+    {
+      "name": "put with a condition",
+      "entity": "item",
+      "chain": [
+        ["put",{"orgId":"O1","itemId":"I1","title":"T","createdAt":"2026-01-01"}],
+        ["where",{"$fn":"where","args":[["notExists","title"]]}]
+      ]
+    },
+    {
+      "name": "put without a sibling composite of a defaulted one",
+      "entity": "item",
+      "chain": [["put",{"orgId":"O1","itemId":"I1","title":"T"}]]
+    },
+    {
+      "name": "put returning all_old",
+      "entity": "item",
+      "chain": [["put",{"orgId":"O1","itemId":"I1","title":"T","createdAt":"2026-01-01"}]],
+      "params": {"response":"all_old"},
+      "go": {"response":"all_old"},
+      "responses": [
+        {
+          "Attributes": {
+            "pk": {"S":"$taskapp#orgid_o1"},
+            "sk": {"S":"$item_1#itemid_i1"},
+            "orgId": {"S":"O1"},
+            "itemId": {"S":"I1"},
+            "title": {"S":"Old"},
+            "status": {"S":"open"},
+            "__edb_e__": {"S":"item"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "create",
+      "entity": "item",
+      "chain": [["create",{"orgId":"O1","itemId":"I1","title":"T","createdAt":"2026-01-01"}]]
+    },
+    {
+      "name": "create returning the rejected item",
+      "entity": "item",
+      "chain": [["create",{"orgId":"O1","itemId":"I1","title":"T","createdAt":"2026-01-01"}]],
+      "params": {"returnOnConditionCheckFailure":"all_old"},
+      "go": {"returnOnConditionCheckFailure":"all_old"},
+      "responses": [
+        {
+          "__type": "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException",
+          "message": "The conditional request failed",
+          "Item": {
+            "pk": {"S":"$taskapp#orgid_o1"},
+            "sk": {"S":"$item_1#itemid_i1"},
+            "orgId": {"S":"O1"},
+            "itemId": {"S":"I1"},
+            "title": {"S":"Existing"},
+            "status": {"S":"open"},
+            "__edb_e__": {"S":"item"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "create rejected without the item",
+      "entity": "item",
+      "chain": [["create",{"orgId":"O1","itemId":"I1","title":"T","createdAt":"2026-01-01"}]],
+      "params": false,
+      "go": {"returnOnConditionCheckFailure":true},
+      "responses": [
+        {
+          "__type": "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException",
+          "message": "The conditional request failed"
+        }
+      ]
+    },
+    {"name":"delete","entity":"item","chain":[["delete",{"orgId":"O1","itemId":"I1"}]]},
+    {
+      "name": "delete with a condition returning all_old",
+      "entity": "item",
+      "chain": [
+        ["delete",{"orgId":"O1","itemId":"I1"}],
+        ["where",{"$fn":"where","args":[["eq","status","closed"]]}]
+      ],
+      "params": {"response":"all_old"},
+      "go": {"response":"all_old"},
+      "responses": [
+        {
+          "Attributes": {
+            "orgId": {"S":"O1"},
+            "itemId": {"S":"I1"},
+            "title": {"S":"Gone"},
+            "status": {"S":"closed"},
+            "__edb_e__": {"S":"item"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    },
+    {"name":"remove","entity":"item","chain":[["remove",{"orgId":"O1","itemId":"I1"}]]},
+    {
+      "name": "update every operation",
+      "entity": "item",
+      "chain": [
+        ["update",{"orgId":"O1","itemId":"I1"}],
+        ["set",{"title":"New","meta.a":"x"}],
+        ["add",{"count":2,"tags":["t1","t2"]}],
+        ["subtract",{"count":1}],
+        ["append",{"history":["h1"]}],
+        ["delete",{"tags":["t0"]}],
+        ["remove",["blob"]],
+        ["ifNotExists",{"meta.b":5}]
+      ]
+    },
+    {
+      "name": "update list index and nested path with data",
+      "entity": "item",
+      "chain": [
+        ["update",{"orgId":"O1","itemId":"I1"}],
+        [
+          "data",
+          {
+            "$fn": "data",
+            "args": [
+              ["set","history[0]","first"],
+              ["remove","history[1]"],
+              ["add","meta.b",3],
+              ["set","blob.x.y",1]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update a gsi composite without its sibling",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["set",{"status":"closed"}]]
+    },
+    {
+      "name": "update a gsi composite with composite()",
+      "entity": "item",
+      "chain": [
+        ["update",{"orgId":"O1","itemId":"I1"}],
+        ["set",{"status":"closed"}],
+        ["composite",{"createdAt":"2026-01-01"}]
+      ]
+    },
+    {
+      "name": "update sets the sparse index",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["set",{"ownerId":"U1"}]]
+    },
+    {
+      "name": "update removes the sparse index",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["remove",["ownerId"]]]
+    },
+    {
+      "name": "update a readOnly attribute",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["set",{"createdBy":"x"}]]
+    },
+    {
+      "name": "remove a required attribute",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["remove",["title"]]]
+    },
+    {
+      "name": "update a key composite",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["set",{"itemId":"I2"}]]
+    },
+    {
+      "name": "update with an empty set add",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["add",{"tags":[]}],["set",{"title":"T"}]]
+    },
+    {
+      "name": "update with every condition",
+      "entity": "item",
+      "chain": [
+        ["update",{"orgId":"O1","itemId":"I1"}],
+        ["set",{"title":"T"}],
+        [
+          "where",
+          {
+            "$fn": "where",
+            "args": [
+              [
+                "and",
+                ["eq","status","open"],
+                ["ne","title","x"],
+                ["gt","count",1],
+                ["gte","count",2],
+                ["lt","count",9],
+                ["lte","count",8],
+                ["between","count",1,5],
+                ["begins","title","T"],
+                ["exists","meta.a"],
+                ["notExists","ownerId"],
+                ["contains","tags","t1"],
+                ["notContains","title","z"],
+                ["or",["eq","meta.b",1],["not",["eq","meta.b",2]]]
+              ]
+            ]
+          }
+        ],
+        ["where",{"$fn":"where","args":[["eq","createdAt","2026"]]}]
+      ]
+    },
+    {
+      "name": "update returning all_new",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["set",{"title":"T"}]],
+      "params": {"response":"all_new"},
+      "go": {"response":"all_new"},
+      "responses": [
+        {
+          "Attributes": {
+            "pk": {"S":"$taskapp#orgid_o1"},
+            "orgId": {"S":"O1"},
+            "itemId": {"S":"I1"},
+            "title": {"S":"T"},
+            "status": {"S":"open"},
+            "count": {"N":"3"},
+            "__edb_e__": {"S":"item"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "update returning updated_old",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["set",{"title":"T"}]],
+      "params": {"response":"updated_old"},
+      "go": {"response":"updated_old"},
+      "responses": [{"Attributes":{"title":{"S":"Before"}}}]
+    },
+    {
+      "name": "update returning none",
+      "entity": "item",
+      "chain": [["update",{"orgId":"O1","itemId":"I1"}],["set",{"title":"T"}]],
+      "params": {"response":"none"},
+      "go": {"response":"none"}
+    },
+    {
+      "name": "patch with a condition",
+      "entity": "item",
+      "chain": [
+        ["patch",{"orgId":"O1","itemId":"I1"}],
+        ["set",{"title":"T"}],
+        ["where",{"$fn":"where","args":[["eq","status","open"]]}]
+      ]
+    },
+    {
+      "name": "upsert",
+      "entity": "item",
+      "chain": [
+        [
+          "upsert",
+          {"orgId":"O1","itemId":"I1","title":"T","createdBy":"u1","createdAt":"2026-01-01"}
+        ]
+      ]
+    },
+    {
+      "name": "upsert with operations",
+      "entity": "item",
+      "chain": [
+        ["upsert",{"orgId":"O1","itemId":"I1","title":"T","createdAt":"2026-01-01"}],
+        ["add",{"count":1}],
+        ["subtract",{"count":2}],
+        ["append",{"history":["h"]}],
+        ["ifNotExists",{"ownerId":"U1"}]
+      ]
+    },
+    {
+      "name": "upsert missing a required attribute",
+      "entity": "item",
+      "chain": [["upsert",{"orgId":"O1","itemId":"I1"}]]
+    }
+  ]
+}

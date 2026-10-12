@@ -200,29 +200,39 @@ func QueryKeys(m *model.Model, ix *model.Index, typ QueryType, pk Attrs, sks ...
 // ElectroDB's _getPutKeys. set holds the attribute values after defaults and
 // setters; primary holds the primary-key composites as passed to put.
 func PutKeys(m *model.Model, set, primary Attrs) (map[string]any, error) {
-	completed, err := putImpact(m, set, primary)
+	keys, _, err := putKeys(m, set, primary)
+	return keys, err
+}
+
+// putKeys mirrors _getPutKeys, also returning the key fields a sparse index
+// condition removed (used by upsert).
+func putKeys(m *model.Model, set, primary Attrs) (map[string]any, []string, error) {
+	imp, err := expectIndexFacets(m, set, primary, impactOptions{})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	var deleted []string
+	for _, ix := range m.Indexes {
+		if keep, ok := imp.conditions[ix]; ok && !keep {
+			deleted = append(deleted, ix.PK.Field)
+			if ix.HasSK {
+				deleted = append(deleted, ix.SK.Field)
+			}
+		}
+	}
+	completed := imp.completed
 	table := m.TableIndex()
 	if !slices.Contains(completed, table) {
 		completed = append(completed, table)
 	}
 
-	merged := make(Attrs, len(set)+len(primary))
-	for k, v := range primary {
-		merged[k] = v
-	}
-	for k, v := range set {
-		merged[k] = v
-	}
-
+	merged := mergeAttrs(primary, set)
 	out := map[string]any{}
 	for _, ix := range completed {
 		if ix.Condition != nil {
 			keep, err := ix.Condition(merged)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if !keep {
 				continue
@@ -230,7 +240,7 @@ func PutKeys(m *model.Model, set, primary Attrs) (map[string]any, error) {
 		}
 		keys, err := indexKeys(m, ix, merged, []Attrs{merged}, keyOptions{})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if keys.PK != nil && keys.PK != "" {
 			out[ix.PK.Field] = keys.PK
@@ -239,17 +249,66 @@ func PutKeys(m *model.Model, set, primary Attrs) (map[string]any, error) {
 			out[ix.SK.Field] = keys.SK[0]
 		}
 	}
-	return out, nil
+	return out, deleted, nil
 }
 
-// putImpact mirrors ElectroDB's _getIndexImpact as put uses it. It returns
-// the indexes whose provided composites are complete, in index order.
-func putImpact(m *model.Model, attrs, included Attrs) ([]*model.Index, error) {
-	type impact struct {
-		pk, sk       []string
-		pkSet, skSet bool
+// impactOptions mirrors the options of ElectroDB's _getIndexImpact.
+type impactOptions struct {
+	// includedOnly also counts sparse indexes whose composites are all in
+	// included (update "set").
+	includedOnly bool
+	// skipConditions treats every index as unconditional (update "remove").
+	skipConditions bool
+}
+
+// impact is the result of indexImpact.
+type impact struct {
+	// completed lists indexes whose impacted keys are complete.
+	completed []*model.Index
+	// types maps each impacted index to its impacted key fields; order
+	// lists those indexes in the order ElectroDB first saw them.
+	types map[*model.Index]map[model.KeyType]string
+	order []*model.Index
+	// conditions holds the evaluated sparse-index conditions.
+	conditions map[*model.Index]bool
+	// incomplete lists the indexes left half-built.
+	incomplete []incompleteIndex
+}
+
+type incompleteIndex struct {
+	index   *model.Index
+	missing []string
+}
+
+// indexImpact mirrors ElectroDB's _getIndexImpact.
+func indexImpact(m *model.Model, attrs, included Attrs, opt impactOptions) (impact, error) {
+	type keyImpact struct {
+		names    []string
+		provided bool
 	}
-	impacted := map[*model.Index]*impact{}
+	impacted := map[*model.Index]map[model.KeyType]*keyImpact{}
+	out := impact{types: map[*model.Index]map[model.KeyType]string{}, conditions: map[*model.Index]bool{}}
+	mark := func(ix *model.Index, kt model.KeyType, names []string, provided bool) {
+		if impacted[ix] == nil {
+			impacted[ix] = map[model.KeyType]*keyImpact{}
+		}
+		ki := impacted[ix][kt]
+		if ki == nil {
+			ki = &keyImpact{}
+			impacted[ix][kt] = ki
+		}
+		ki.names = append(ki.names, names...)
+		ki.provided = ki.provided || provided
+		if out.types[ix] == nil {
+			out.types[ix] = map[model.KeyType]string{}
+			out.order = append(out.order, ix)
+		}
+		if kt == model.PK {
+			out.types[ix][kt] = ix.PK.Field
+		} else {
+			out.types[ix][kt] = ix.SK.Field
+		}
+	}
 	for _, name := range m.FacetAttributes() {
 		if _, ok := attrs[name]; !ok {
 			continue
@@ -258,82 +317,141 @@ func putImpact(m *model.Model, attrs, included Attrs) ([]*model.Index, error) {
 			if f.Index.Type == model.Composite {
 				continue
 			}
-			imp := impacted[f.Index]
-			if imp == nil {
-				imp = &impact{}
-				impacted[f.Index] = imp
+			mark(f.Index, f.Type, []string{name}, true)
+		}
+	}
+
+	if opt.includedOnly {
+		for _, ix := range m.Indexes {
+			if ix.Type == model.Composite || ix.Name == "" || ix.Condition == nil {
+				continue
 			}
-			if f.Type == model.PK {
-				imp.pk, imp.pkSet = append(imp.pk, name), true
-			} else {
-				imp.sk, imp.skSet = append(imp.sk, name), true
+			for _, kt := range []model.KeyType{model.PK, model.SK} {
+				k := &ix.PK
+				if kt == model.SK {
+					k = &ix.SK
+				}
+				if len(k.Composites) == 0 || !allIn(k.Composites, included) {
+					continue
+				}
+				if kt == model.SK && !ix.HasSK {
+					continue
+				}
+				if impacted[ix] == nil {
+					impacted[ix] = map[model.KeyType]*keyImpact{}
+				}
+				// Replace the impacted list with the full composite list, as
+				// ElectroDB does, keeping any "provided" source.
+				prev := impacted[ix][kt]
+				provided := prev != nil && prev.provided
+				impacted[ix][kt] = &keyImpact{names: append([]string{}, k.Composites...), provided: provided}
+				if out.types[ix] == nil {
+					out.types[ix] = map[model.KeyType]string{}
+					out.order = append(out.order, ix)
+				}
+				out.types[ix][kt] = k.Field
 			}
 		}
 	}
 
-	var completed []*model.Index
-	var incomplete []string
-	var incompletePatterns []string
+	type pending struct {
+		ix      *model.Index
+		missing []string
+	}
+	var all []pending
 	for _, ix := range m.Indexes {
 		if ix.Type == model.Composite {
 			continue
 		}
-		var missing []string
+		p := pending{ix: ix}
 		if imp := impacted[ix]; imp != nil {
-			missingPK := imp.pkSet && len(imp.pk) != len(ix.PK.Composites)
-			missingSK := imp.skSet && len(imp.sk) != len(ix.SK.Composites)
+			pkImp, skImp := imp[model.PK], imp[model.SK]
+			missingPK := pkImp != nil && len(pkImp.names) != len(ix.PK.Composites)
+			missingSK := skImp != nil && len(skImp.names) != len(ix.SK.Composites)
 			if missingPK {
-				missing = append(missing, notIn(ix.PK.Composites, imp.pk, included)...)
+				p.missing = append(p.missing, notIn(ix.PK.Composites, pkImp.names, included)...)
 			}
 			if missingSK {
-				missing = append(missing, notIn(ix.SK.Composites, imp.sk, included)...)
+				p.missing = append(p.missing, notIn(ix.SK.Composites, skImp.names, included)...)
 			}
 			if !missingPK && !missingSK {
-				completed = append(completed, ix)
+				out.completed = append(out.completed, ix)
 			}
 		}
-
-		if ix.Name == "" || ix.Condition == nil {
-			if len(missing) > 0 {
-				incomplete = append(incomplete, missing...)
-				incompletePatterns = append(incompletePatterns, ix.AccessPattern)
-			}
-			continue
-		}
-
-		allIncluded := true
-		for _, name := range ix.Composites() {
-			if _, ok := included[name]; !ok {
-				allIncluded = false
-			}
-		}
-		if impacted[ix] == nil && !allIncluded {
-			if len(missing) > 0 {
-				incomplete = append(incomplete, missing...)
-				incompletePatterns = append(incompletePatterns, ix.AccessPattern)
-			}
-			continue
-		}
-
-		var absent []string
-		for _, name := range ix.Composites() {
-			_, inAttrs := attrs[name]
-			_, inIncluded := included[name]
-			if (!inAttrs && !inIncluded) || slices.Contains(missing, name) {
-				absent = append(absent, name)
-			}
-		}
-		if len(absent) > 0 {
-			return nil, &IncompleteCompositesError{AccessPatterns: []string{ix.AccessPattern}, Missing: absent}
-		}
-		// ElectroDB evaluates the condition here as well; PutKeys evaluates it
-		// again before building keys, so the result isn't needed.
+		all = append(all, p)
 	}
 
-	if len(incomplete) > 0 {
-		return nil, &IncompleteCompositesError{AccessPatterns: incompletePatterns, Missing: incomplete}
+	for _, p := range all {
+		ix := p.ix
+		if opt.skipConditions || ix.Name == "" || ix.Condition == nil {
+			if len(p.missing) > 0 {
+				out.incomplete = append(out.incomplete, incompleteIndex{ix, p.missing})
+			}
+			out.conditions[ix] = true
+			continue
+		}
+		imp := impacted[ix]
+		memberProvided := imp != nil && ((imp[model.PK] != nil && imp[model.PK].provided) || (imp[model.SK] != nil && imp[model.SK].provided))
+		allIncluded := allIn(ix.Composites(), included)
+		if memberProvided || allIncluded {
+			var absent []string
+			for _, name := range ix.Composites() {
+				_, inAttrs := attrs[name]
+				_, inIncluded := included[name]
+				if (!inAttrs && !inIncluded) || slices.Contains(p.missing, name) {
+					absent = append(absent, name)
+				}
+			}
+			if len(absent) > 0 {
+				return out, &IncompleteCompositesError{AccessPatterns: []string{ix.AccessPattern}, Missing: absent, Conditional: true}
+			}
+			merged := mergeAttrs(attrs, included)
+			keep, err := ix.Condition(merged)
+			if err != nil {
+				return out, err
+			}
+			out.conditions[ix] = keep
+		} else if len(p.missing) > 0 {
+			out.incomplete = append(out.incomplete, incompleteIndex{ix, p.missing})
+		}
 	}
-	return completed, nil
+	return out, nil
+}
+
+// expectIndexFacets mirrors ElectroDB's _expectIndexFacets.
+func expectIndexFacets(m *model.Model, attrs, included Attrs, opt impactOptions) (impact, error) {
+	imp, err := indexImpact(m, attrs, included, opt)
+	if err != nil {
+		return imp, err
+	}
+	if len(imp.incomplete) > 0 {
+		e := &IncompleteCompositesError{}
+		for _, inc := range imp.incomplete {
+			e.AccessPatterns = append(e.AccessPatterns, inc.index.AccessPattern)
+			e.Missing = append(e.Missing, inc.missing...)
+		}
+		return imp, e
+	}
+	return imp, nil
+}
+
+func allIn(names []string, attrs Attrs) bool {
+	for _, n := range names {
+		if _, ok := attrs[n]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func mergeAttrs(maps ...Attrs) Attrs {
+	out := Attrs{}
+	for _, m := range maps {
+		for k, v := range m {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // notIn returns the composites neither impacted nor included.

@@ -139,7 +139,9 @@ func encFn(a *attribute) string {
 	case attr.KindEnum:
 		return "wire.EncodeEnum[" + a.TypeName + "]"
 	case attr.KindTime, attr.KindDuration, attr.KindUUID, attr.KindCustom:
-		return "codecs." + a.CodecVar + ".Encode"
+		// A closure, so the codec is looked up when used: descriptors are
+		// built before init sets the codecs.
+		return fmt.Sprintf("func(v %s) (ddbtypes.AttributeValue, error) { return codecs.%s.Encode(v) }", a.goType(), a.CodecVar)
 	case attr.KindSet:
 		if a.Elem.Numeric {
 			return "wire.EncodeNumberSet[" + a.Elem.Expr + "]"
@@ -172,7 +174,7 @@ func decFn(a *attribute) string {
 	case attr.KindEnum:
 		return "wire.DecodeEnum[" + a.TypeName + "]"
 	case attr.KindTime, attr.KindDuration, attr.KindUUID, attr.KindCustom:
-		return "codecs." + a.CodecVar + ".Decode"
+		return fmt.Sprintf("func(av ddbtypes.AttributeValue) (%s, error) { return codecs.%s.Decode(av) }", a.goType(), a.CodecVar)
 	case attr.KindSet:
 		if a.Elem.Numeric {
 			return "wire.DecodeNumberSet[" + a.Elem.Expr + "]"
@@ -335,6 +337,9 @@ func renderEntity(e *entity, dbImport string) ([]byte, error) {
 	}
 	w.p("\treturn wattdb.Compile(s, h)")
 	w.p("}\n")
+
+	renderClient(&w, e)
+	renderDescriptors(&w, e)
 
 	// Conversions.
 	w.p("func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {")
@@ -601,4 +606,134 @@ func renderRuntime(entities []*entity, dbImport string) ([]byte, error) {
 	}
 	w.p("}")
 	return gofmt("runtime/runtime.go", w.Bytes())
+}
+
+// renderClient writes the generated client (decisions D24, D26, D27).
+func renderClient(w *emitter, e *entity) {
+	name := e.structName()
+	tt := fmt.Sprintf("wattdb.Table[%s, Partial]", name)
+	w.p("// Client reads and writes %s items in one table.", e.Name)
+	w.p("type Client struct {")
+	w.p("\tt *%s", tt)
+	w.p("}\n")
+	w.p("// New returns a client for the %s items in table. db/runtime must be", e.Name)
+	w.p("// imported, so the schema's callbacks are registered.")
+	w.p("func New(cfg *wattdb.Config, table string) (*Client, error) {")
+	w.p("\td, err := entityDef()")
+	w.p("\tif err != nil {")
+	w.p("\t\treturn nil, err")
+	w.p("\t}")
+	w.p("\tt, err := wattdb.NewTable(cfg, d, table, decode%s, decodePartial)", name)
+	w.p("\tif err != nil {")
+	w.p("\t\treturn nil, err")
+	w.p("\t}")
+	w.p("\treturn &Client{t: t}, nil")
+	w.p("}\n")
+	ops := []struct{ method, doc, arg, call, ret string }{
+		{"Get", "reads one item; a missing item is wattdb.ErrNotFound", "k Key", "Get(k.encode())", "Get"},
+		{"Put", "writes a whole item, replacing any existing one", "in Input", "Put(in.encode())", "Put"},
+		{"Create", "writes a new item, failing with wattdb.ErrConditionFailed if it exists", "in Input", "Create(in.encode())", "Put"},
+		{"Delete", "deletes one item", "k Key", "Delete(k.encode())", "Delete"},
+		{"Remove", "deletes one item, failing with wattdb.ErrConditionFailed if it doesn't exist", "k Key", "Remove(k.encode())", "Delete"},
+		{"Update", "changes attributes of one item, creating it if needed", "k Key", "Update(k.encode())", "Update"},
+		{"Patch", "changes attributes of one item, failing with wattdb.ErrConditionFailed if it doesn't exist", "k Key", "Patch(k.encode())", "Update"},
+	}
+	for _, o := range ops {
+		w.p("// %s %s.", o.method, o.doc)
+		w.p("func (c *Client) %s(%s) *wattdb.%s[%s, Partial] {", o.method, o.arg, o.ret, name)
+		w.p("\treturn c.t.%s", o.call)
+		w.p("}\n")
+	}
+	w.p("// Upsert writes in's attributes, creating the item if needed; chain more")
+	w.p("// operations before Exec.")
+	w.p("func (c *Client) Upsert(in Input) *wattdb.Upsert[%s, Partial] {", name)
+	w.p("\tm, err := in.encode()")
+	w.p("\treturn c.t.Upsert(m, inputOrder, err)")
+	w.p("}\n")
+	fields := make([]string, len(e.Attrs))
+	for i, a := range e.Attrs {
+		fields[i] = strconv.Quote(a.Field)
+	}
+	w.p("var inputOrder = []string{%s}\n", strings.Join(fields, ", "))
+}
+
+// descType is the Go type of an attribute's descriptor.
+func descType(e *entity, a *attribute) string {
+	E := e.structName()
+	switch a.Kind {
+	case attr.KindInt, attr.KindInt64, attr.KindFloat64:
+		return fmt.Sprintf("wattdb.NumberAttr[%s, %s]", E, a.goType())
+	case attr.KindSet:
+		return fmt.Sprintf("wattdb.SetAttr[%s, %s]", E, a.Elem.Expr)
+	case attr.KindList:
+		return fmt.Sprintf("wattdb.ListAttr[%s, %s, %s]", E, a.Items.goType(), descType(e, a.Items))
+	case attr.KindMap:
+		return a.TypeName + "Attr"
+	default:
+		return fmt.Sprintf("wattdb.Attr[%s, %s]", E, a.goType())
+	}
+}
+
+// itemEncFn encodes one set item.
+func itemEncFn(a *attribute) string {
+	if a.Elem.Numeric {
+		return "wire.EncodeNumber[" + a.Elem.Expr + "]"
+	}
+	return "wire.EncodeEnum[" + a.Elem.Expr + "]"
+}
+
+// descExpr is a Go expression building an attribute's descriptor at path.
+func descExpr(e *entity, a *attribute, path string) string {
+	E := e.structName()
+	switch a.Kind {
+	case attr.KindInt, attr.KindInt64, attr.KindFloat64:
+		return fmt.Sprintf("wattdb.NewNumberAttr[%s, %s](%s, %s)", E, a.goType(), path, encFn(a))
+	case attr.KindSet:
+		return fmt.Sprintf("wattdb.NewSetAttr[%s, %s](%s, %s, %s)", E, a.Elem.Expr, path, encFn(a), itemEncFn(a))
+	case attr.KindList:
+		return fmt.Sprintf("wattdb.NewListAttr[%s, %s, %s](%s, %s, %s, func(p []string) %s { return %s })",
+			E, a.Items.goType(), descType(e, a.Items), path, encFn(a), encFn(a.Items), descType(e, a.Items), descExpr(e, a.Items, "p"))
+	case attr.KindMap:
+		return fmt.Sprintf("new%sAttr(%s)", a.TypeName, path)
+	default:
+		return fmt.Sprintf("wattdb.NewAttr[%s, %s](%s, %s)", E, a.goType(), path, encFn(a))
+	}
+}
+
+// renderDescriptors writes the descriptors (decisions D24, D34, D36).
+func renderDescriptors(w *emitter, e *entity) {
+	w.p("// Descriptors, for conditions and updates. Map properties also have")
+	w.p("// flattened names (ProfileDisplayName for Profile.DisplayName).")
+	w.p("var (")
+	var flat func(a *attribute, name, expr string)
+	flat = func(a *attribute, name, expr string) {
+		w.p("\t%s = %s", name, expr)
+		if a.Kind == attr.KindMap {
+			for _, p := range a.Props {
+				flat(p, name+p.GoName, name+"."+p.GoName)
+			}
+		}
+	}
+	for _, a := range e.Attrs {
+		flat(a, a.GoName, descExpr(e, a, fmt.Sprintf("[]string{%q}", a.Field)))
+	}
+	w.p(")\n")
+
+	for _, a := range e.collect(attr.KindMap) {
+		w.p("// %sAttr describes the %s map and its properties.", a.TypeName, a.Path)
+		w.p("type %sAttr struct {", a.TypeName)
+		w.p("\twattdb.Attr[%s, %s]", e.structName(), a.TypeName)
+		for _, p := range a.Props {
+			w.p("\t%s %s", p.GoName, descType(e, p))
+		}
+		w.p("}\n")
+		w.p("func new%sAttr(p []string) %sAttr {", a.TypeName, a.TypeName)
+		w.p("\treturn %sAttr{", a.TypeName)
+		w.p("\t\tAttr: wattdb.NewAttr[%s, %s](p, %s),", e.structName(), a.TypeName, encFn(a))
+		for _, p := range a.Props {
+			w.p("\t\t%s: %s,", p.GoName, descExpr(e, p, fmt.Sprintf("wattdb.SubPath(p, %q)", p.Field)))
+		}
+		w.p("\t}")
+		w.p("}\n")
+	}
 }

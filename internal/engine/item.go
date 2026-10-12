@@ -626,10 +626,10 @@ func removeFixings(prefix, postfix, value string) string {
 	return value[start:end]
 }
 
-// rootAttribute resolves a root payload key the way ElectroDB's traverser
-// does: by attribute name, or by field.
+// rootAttribute resolves a payload key the way ElectroDB's traverser does:
+// by attribute path (root names, or nested paths in updates), or by field.
 func rootAttribute(m *model.Model, key string) *model.Attribute {
-	if a, ok := m.Attribute(key); ok {
+	if a, ok := m.AttributeAtPath(key); ok {
 		return a
 	}
 	for _, a := range m.Attributes {

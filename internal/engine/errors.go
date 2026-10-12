@@ -18,6 +18,9 @@ type IncompleteCompositesError struct {
 	// AccessPatterns lists the affected access patterns, if known.
 	AccessPatterns []string
 	Missing        []string
+	// Conditional is set when a sparse index (one with a condition) was
+	// given some but not all of its composites.
+	Conditional bool
 }
 
 func (e *IncompleteCompositesError) Error() string {

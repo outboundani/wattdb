@@ -167,3 +167,16 @@ func AttributeMap(data json.RawMessage) (map[string]types.AttributeValue, error)
 	}
 	return out, nil
 }
+
+// Keys returns a JSON object's keys in document order.
+func Keys(data json.RawMessage) ([]string, error) {
+	members, err := objectMembers(data)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, len(members))
+	for i, m := range members {
+		out[i] = m.Key
+	}
+	return out, nil
+}

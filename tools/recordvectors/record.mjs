@@ -152,7 +152,7 @@ async function recordCase(env, c) {
       go.error = errorJSON(err);
     }
     go.requests = transport.requests;
-    if (transport.responses.length > 0) {
+    if (transport.responses.length > 0 && !go.error) {
       throw new Error(`case "${c.name}": ${transport.responses.length} scripted responses were never used`);
     }
     recorded.go = go;

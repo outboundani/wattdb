@@ -1,6 +1,6 @@
 # wattdb implementation plan (approved 2026-10-12)
 
-This turns [decisions.md](decisions.md) (D1–D62) into a build order. The milestone order, porting
+This turns [decisions.md](decisions.md) (D1–D63) into a build order. The milestone order, porting
 order, CI and Go version were approved on 2026-10-12. The package layout below follows the
 decisions, and anything new it raises gets brought to the owner before it's built.
 

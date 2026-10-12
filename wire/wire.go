@@ -31,6 +31,11 @@ func EncodeInt[T ~int | ~int64](v T) (types.AttributeValue, error) {
 	return &types.AttributeValueMemberN{Value: strconv.FormatInt(int64(v), 10)}, nil
 }
 
+// EncodeNumber encodes any number type (set and list items).
+func EncodeNumber[T ~int | ~int64 | ~float64](v T) (types.AttributeValue, error) {
+	return &types.AttributeValueMemberN{Value: formatNumber(v)}, nil
+}
+
 // EncodeFloat formats like strconv 'f' (decision D56), writing -0 as "0".
 func EncodeFloat(v float64) (types.AttributeValue, error) {
 	return &types.AttributeValueMemberN{Value: FormatFloat(v)}, nil

@@ -104,13 +104,17 @@ func register(s wattdb.Schema) (*wattdb.EntityDef, error) {
 			if !ok {
 				return nil, fmt.Errorf("attribute CreatedAt: DefaultFunc is %T, want func() time.Time", d.DefaultFunc)
 			}
-			h.Defaults["CreatedAt"] = func() (ddbtypes.AttributeValue, error) { return codecs.CreatedAt.Encode(fn()) }
+			h.Defaults["CreatedAt"] = func() (ddbtypes.AttributeValue, error) {
+				return func(v time.Time) (ddbtypes.AttributeValue, error) { return codecs.CreatedAt.Encode(v) }(fn())
+			}
 		} else {
 			v, err := wire.Convert[time.Time](d.Default)
 			if err != nil {
 				return nil, fmt.Errorf("attribute CreatedAt: Default: %w", err)
 			}
-			h.Defaults["CreatedAt"] = func() (ddbtypes.AttributeValue, error) { return codecs.CreatedAt.Encode(v) }
+			h.Defaults["CreatedAt"] = func() (ddbtypes.AttributeValue, error) {
+				return func(v time.Time) (ddbtypes.AttributeValue, error) { return codecs.CreatedAt.Encode(v) }(v)
+			}
 		}
 	}
 	{
@@ -147,6 +151,123 @@ func register(s wattdb.Schema) (*wattdb.EntityDef, error) {
 		}
 	}
 	return wattdb.Compile(s, h)
+}
+
+// Client reads and writes user items in one table.
+type Client struct {
+	t *wattdb.Table[User, Partial]
+}
+
+// New returns a client for the user items in table. db/runtime must be
+// imported, so the schema's callbacks are registered.
+func New(cfg *wattdb.Config, table string) (*Client, error) {
+	d, err := entityDef()
+	if err != nil {
+		return nil, err
+	}
+	t, err := wattdb.NewTable(cfg, d, table, decodeUser, decodePartial)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{t: t}, nil
+}
+
+// Get reads one item; a missing item is wattdb.ErrNotFound.
+func (c *Client) Get(k Key) *wattdb.Get[User, Partial] {
+	return c.t.Get(k.encode())
+}
+
+// Put writes a whole item, replacing any existing one.
+func (c *Client) Put(in Input) *wattdb.Put[User, Partial] {
+	return c.t.Put(in.encode())
+}
+
+// Create writes a new item, failing with wattdb.ErrConditionFailed if it exists.
+func (c *Client) Create(in Input) *wattdb.Put[User, Partial] {
+	return c.t.Create(in.encode())
+}
+
+// Delete deletes one item.
+func (c *Client) Delete(k Key) *wattdb.Delete[User, Partial] {
+	return c.t.Delete(k.encode())
+}
+
+// Remove deletes one item, failing with wattdb.ErrConditionFailed if it doesn't exist.
+func (c *Client) Remove(k Key) *wattdb.Delete[User, Partial] {
+	return c.t.Remove(k.encode())
+}
+
+// Update changes attributes of one item, creating it if needed.
+func (c *Client) Update(k Key) *wattdb.Update[User, Partial] {
+	return c.t.Update(k.encode())
+}
+
+// Patch changes attributes of one item, failing with wattdb.ErrConditionFailed if it doesn't exist.
+func (c *Client) Patch(k Key) *wattdb.Update[User, Partial] {
+	return c.t.Patch(k.encode())
+}
+
+// Upsert writes in's attributes, creating the item if needed; chain more
+// operations before Exec.
+func (c *Client) Upsert(in Input) *wattdb.Upsert[User, Partial] {
+	m, err := in.encode()
+	return c.t.Upsert(m, inputOrder, err)
+}
+
+var inputOrder = []string{"orgId", "userId", "email", "role", "loginCount", "score", "active", "createdAt", "timeout", "token", "lucky", "links", "profile", "prefs", "balance"}
+
+// Descriptors, for conditions and updates. Map properties also have
+// flattened names (ProfileDisplayName for Profile.DisplayName).
+var (
+	OrgID              = wattdb.NewAttr[User, string]([]string{"orgId"}, wire.EncodeString)
+	UserID             = wattdb.NewAttr[User, string]([]string{"userId"}, wire.EncodeString)
+	Email              = wattdb.NewAttr[User, string]([]string{"email"}, wire.EncodeString)
+	Role               = wattdb.NewAttr[User, RoleEnum]([]string{"role"}, wire.EncodeEnum[RoleEnum])
+	LoginCount         = wattdb.NewNumberAttr[User, int64]([]string{"loginCount"}, wire.EncodeInt[int64])
+	Score              = wattdb.NewNumberAttr[User, float64]([]string{"score"}, wire.EncodeFloat)
+	Active             = wattdb.NewAttr[User, bool]([]string{"active"}, wire.EncodeBool)
+	CreatedAt          = wattdb.NewAttr[User, time.Time]([]string{"createdAt"}, func(v time.Time) (ddbtypes.AttributeValue, error) { return codecs.CreatedAt.Encode(v) })
+	Timeout            = wattdb.NewAttr[User, time.Duration]([]string{"timeout"}, func(v time.Duration) (ddbtypes.AttributeValue, error) { return codecs.Timeout.Encode(v) })
+	Token              = wattdb.NewAttr[User, [16]byte]([]string{"token"}, func(v [16]byte) (ddbtypes.AttributeValue, error) { return codecs.Token.Encode(v) })
+	Lucky              = wattdb.NewSetAttr[User, int]([]string{"lucky"}, wire.EncodeNumberSet[int], wire.EncodeNumber[int])
+	Links              = wattdb.NewListAttr[User, string, wattdb.Attr[User, string]]([]string{"links"}, wire.ListEncoder[string](wire.EncodeString), wire.EncodeString, func(p []string) wattdb.Attr[User, string] { return wattdb.NewAttr[User, string](p, wire.EncodeString) })
+	Profile            = newProfileMapAttr([]string{"profile"})
+	ProfileDisplayName = Profile.DisplayName
+	ProfilePronoun     = Profile.Pronoun
+	ProfileAddress     = Profile.Address
+	ProfileAddressCity = ProfileAddress.City
+	Prefs              = wattdb.NewAttr[User, types.Settings]([]string{"prefs"}, wire.EncodeAnyOf[types.Settings])
+	Balance            = wattdb.NewAttr[User, types.Cents]([]string{"balance"}, func(v types.Cents) (ddbtypes.AttributeValue, error) { return codecs.Balance.Encode(v) })
+)
+
+// ProfileMapAttr describes the Profile map and its properties.
+type ProfileMapAttr struct {
+	wattdb.Attr[User, ProfileMap]
+	DisplayName wattdb.Attr[User, string]
+	Pronoun     wattdb.Attr[User, ProfilePronounEnum]
+	Address     ProfileAddressMapAttr
+}
+
+func newProfileMapAttr(p []string) ProfileMapAttr {
+	return ProfileMapAttr{
+		Attr:        wattdb.NewAttr[User, ProfileMap](p, encodeProfileMap),
+		DisplayName: wattdb.NewAttr[User, string](wattdb.SubPath(p, "displayName"), wire.EncodeString),
+		Pronoun:     wattdb.NewAttr[User, ProfilePronounEnum](wattdb.SubPath(p, "pronoun"), wire.EncodeEnum[ProfilePronounEnum]),
+		Address:     newProfileAddressMapAttr(wattdb.SubPath(p, "address")),
+	}
+}
+
+// ProfileAddressMapAttr describes the Profile.Address map and its properties.
+type ProfileAddressMapAttr struct {
+	wattdb.Attr[User, ProfileAddressMap]
+	City wattdb.Attr[User, string]
+}
+
+func newProfileAddressMapAttr(p []string) ProfileAddressMapAttr {
+	return ProfileAddressMapAttr{
+		Attr: wattdb.NewAttr[User, ProfileAddressMap](p, encodeProfileAddressMap),
+		City: wattdb.NewAttr[User, string](wattdb.SubPath(p, "city"), wire.EncodeString),
+	}
 }
 
 func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
@@ -215,7 +336,7 @@ func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
 		}
 	}
 	if in.CreatedAt != nil {
-		av, err := codecs.CreatedAt.Encode(*in.CreatedAt)
+		av, err := func(v time.Time) (ddbtypes.AttributeValue, error) { return codecs.CreatedAt.Encode(v) }(*in.CreatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("createdAt: %w", err)
 		}
@@ -224,7 +345,7 @@ func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
 		}
 	}
 	if in.Timeout != nil {
-		av, err := codecs.Timeout.Encode(*in.Timeout)
+		av, err := func(v time.Duration) (ddbtypes.AttributeValue, error) { return codecs.Timeout.Encode(v) }(*in.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("timeout: %w", err)
 		}
@@ -233,7 +354,7 @@ func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
 		}
 	}
 	if in.Token != nil {
-		av, err := codecs.Token.Encode(*in.Token)
+		av, err := func(v [16]byte) (ddbtypes.AttributeValue, error) { return codecs.Token.Encode(v) }(*in.Token)
 		if err != nil {
 			return nil, fmt.Errorf("token: %w", err)
 		}
@@ -278,7 +399,7 @@ func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
 		}
 	}
 	if in.Balance != nil {
-		av, err := codecs.Balance.Encode(*in.Balance)
+		av, err := func(v types.Cents) (ddbtypes.AttributeValue, error) { return codecs.Balance.Encode(v) }(*in.Balance)
 		if err != nil {
 			return nil, fmt.Errorf("balance: %w", err)
 		}
@@ -360,21 +481,21 @@ func decodeUser(m map[string]ddbtypes.AttributeValue) (User, error) {
 		out.Active = &x
 	}
 	if av, ok := m["createdAt"]; ok {
-		x, err := codecs.CreatedAt.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) (time.Time, error) { return codecs.CreatedAt.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("createdAt: %w", err)
 		}
 		out.CreatedAt = &x
 	}
 	if av, ok := m["timeout"]; ok {
-		x, err := codecs.Timeout.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) (time.Duration, error) { return codecs.Timeout.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("timeout: %w", err)
 		}
 		out.Timeout = &x
 	}
 	if av, ok := m["token"]; ok {
-		x, err := codecs.Token.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) ([16]byte, error) { return codecs.Token.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("token: %w", err)
 		}
@@ -409,7 +530,7 @@ func decodeUser(m map[string]ddbtypes.AttributeValue) (User, error) {
 		out.Prefs = &x
 	}
 	if av, ok := m["balance"]; ok {
-		x, err := codecs.Balance.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) (types.Cents, error) { return codecs.Balance.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("balance: %w", err)
 		}
@@ -470,21 +591,21 @@ func decodePartial(m map[string]ddbtypes.AttributeValue) (Partial, error) {
 		out.Active = &x
 	}
 	if av, ok := m["createdAt"]; ok {
-		x, err := codecs.CreatedAt.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) (time.Time, error) { return codecs.CreatedAt.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("createdAt: %w", err)
 		}
 		out.CreatedAt = &x
 	}
 	if av, ok := m["timeout"]; ok {
-		x, err := codecs.Timeout.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) (time.Duration, error) { return codecs.Timeout.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("timeout: %w", err)
 		}
 		out.Timeout = &x
 	}
 	if av, ok := m["token"]; ok {
-		x, err := codecs.Token.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) ([16]byte, error) { return codecs.Token.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("token: %w", err)
 		}
@@ -519,7 +640,7 @@ func decodePartial(m map[string]ddbtypes.AttributeValue) (Partial, error) {
 		out.Prefs = &x
 	}
 	if av, ok := m["balance"]; ok {
-		x, err := codecs.Balance.Decode(av)
+		x, err := func(av ddbtypes.AttributeValue) (types.Cents, error) { return codecs.Balance.Decode(av) }(av)
 		if err != nil {
 			return out, fmt.Errorf("balance: %w", err)
 		}

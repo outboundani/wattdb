@@ -66,6 +66,7 @@ type Model struct {
 	Indexes []*Index
 
 	attrs     map[string]*Attribute
+	byPath    map[string]*Attribute
 	byName    map[string]*Index
 	byPattern map[string]*Index
 
@@ -113,6 +114,10 @@ type Attribute struct {
 	// when its field is also a key field; reads strip them.
 	KeyPrefix  string
 	KeyPostfix string
+	// KeyCasing is the key's explicitly written casing (lower/upper), which
+	// ElectroDB also applies to values compared with this attribute. Empty
+	// when the casing was left at its default.
+	KeyCasing Casing
 
 	Items      *Attribute
 	Properties []*Attribute
@@ -166,6 +171,8 @@ type Key struct {
 	Template *string
 	// FieldRef is true when the key field is also an attribute's field.
 	FieldRef bool
+	// WrittenCasing is the casing as written in the schema ("" if unset).
+	WrittenCasing string
 
 	// The fixings below come from ElectroDB's _makeKeyFixings. When another
 	// index already uses the same field, they are copied from that index.
@@ -228,4 +235,38 @@ func (ix *Index) Composites() []string {
 	out := make([]string, 0, len(ix.PK.Composites)+len(ix.SK.Composites))
 	out = append(out, ix.PK.Composites...)
 	return append(out, ix.SK.Composites...)
+}
+
+// AttributeAtPath finds an attribute by its ElectroDB path, with list
+// indexes generalized ("steps[0].name" finds "steps[*].name"), as
+// ElectroDB's attribute traverser does.
+func (m *Model) AttributeAtPath(path string) (*Attribute, bool) {
+	a, ok := m.byPath[genericPath.ReplaceAllString(path, "[*]")]
+	return a, ok
+}
+
+// AttributeAtExactPath finds an attribute by its exact ElectroDB path,
+// without generalizing list indexes (ElectroDB's checkUpdate lookup).
+func (m *Model) AttributeAtExactPath(path string) (*Attribute, bool) {
+	a, ok := m.byPath[path]
+	return a, ok
+}
+
+var genericPath = regexp.MustCompile(`\[\d+\]`)
+
+func (m *Model) indexPaths() {
+	m.byPath = map[string]*Attribute{}
+	var walk func(a *Attribute)
+	walk = func(a *Attribute) {
+		m.byPath[a.Path] = a
+		if a.Items != nil {
+			walk(a.Items)
+		}
+		for _, p := range a.Properties {
+			walk(p)
+		}
+	}
+	for _, a := range m.Attributes {
+		walk(a)
+	}
 }

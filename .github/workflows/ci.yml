@@ -23,3 +23,20 @@ jobs:
       - run: go build ./...
       - run: go vet ./...
       - run: go test ./...
+      - name: generated code is current
+        run: |
+          go generate ./integration/...
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            echo "generated code is out of date; run go generate ./integration/..."
+            exit 1
+          fi
+
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go test -tags integration ./integration/...

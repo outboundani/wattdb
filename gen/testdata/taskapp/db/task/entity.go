@@ -142,6 +142,82 @@ func register(s wattdb.Schema) (*wattdb.EntityDef, error) {
 	return wattdb.Compile(s, h)
 }
 
+// Client reads and writes task items in one table.
+type Client struct {
+	t *wattdb.Table[Task, Partial]
+}
+
+// New returns a client for the task items in table. db/runtime must be
+// imported, so the schema's callbacks are registered.
+func New(cfg *wattdb.Config, table string) (*Client, error) {
+	d, err := entityDef()
+	if err != nil {
+		return nil, err
+	}
+	t, err := wattdb.NewTable(cfg, d, table, decodeTask, decodePartial)
+	if err != nil {
+		return nil, err
+	}
+	return &Client{t: t}, nil
+}
+
+// Get reads one item; a missing item is wattdb.ErrNotFound.
+func (c *Client) Get(k Key) *wattdb.Get[Task, Partial] {
+	return c.t.Get(k.encode())
+}
+
+// Put writes a whole item, replacing any existing one.
+func (c *Client) Put(in Input) *wattdb.Put[Task, Partial] {
+	return c.t.Put(in.encode())
+}
+
+// Create writes a new item, failing with wattdb.ErrConditionFailed if it exists.
+func (c *Client) Create(in Input) *wattdb.Put[Task, Partial] {
+	return c.t.Create(in.encode())
+}
+
+// Delete deletes one item.
+func (c *Client) Delete(k Key) *wattdb.Delete[Task, Partial] {
+	return c.t.Delete(k.encode())
+}
+
+// Remove deletes one item, failing with wattdb.ErrConditionFailed if it doesn't exist.
+func (c *Client) Remove(k Key) *wattdb.Delete[Task, Partial] {
+	return c.t.Remove(k.encode())
+}
+
+// Update changes attributes of one item, creating it if needed.
+func (c *Client) Update(k Key) *wattdb.Update[Task, Partial] {
+	return c.t.Update(k.encode())
+}
+
+// Patch changes attributes of one item, failing with wattdb.ErrConditionFailed if it doesn't exist.
+func (c *Client) Patch(k Key) *wattdb.Update[Task, Partial] {
+	return c.t.Patch(k.encode())
+}
+
+// Upsert writes in's attributes, creating the item if needed; chain more
+// operations before Exec.
+func (c *Client) Upsert(in Input) *wattdb.Upsert[Task, Partial] {
+	m, err := in.encode()
+	return c.t.Upsert(m, inputOrder, err)
+}
+
+var inputOrder = []string{"taskId", "title", "code", "status", "search", "secret", "createdBy", "assignee"}
+
+// Descriptors, for conditions and updates. Map properties also have
+// flattened names (ProfileDisplayName for Profile.DisplayName).
+var (
+	TaskID    = wattdb.NewAttr[Task, string]([]string{"taskId"}, wire.EncodeString)
+	Title     = wattdb.NewAttr[Task, string]([]string{"title"}, wire.EncodeString)
+	Code      = wattdb.NewAttr[Task, string]([]string{"code"}, wire.EncodeString)
+	Status    = wattdb.NewAttr[Task, string]([]string{"status"}, wire.EncodeString)
+	Search    = wattdb.NewAttr[Task, string]([]string{"search"}, wire.EncodeString)
+	Secret    = wattdb.NewAttr[Task, string]([]string{"secret"}, wire.EncodeString)
+	CreatedBy = wattdb.NewAttr[Task, string]([]string{"createdBy"}, wire.EncodeString)
+	Assignee  = wattdb.NewAttr[Task, string]([]string{"assignee"}, wire.EncodeString)
+)
+
 func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
 	m := map[string]ddbtypes.AttributeValue{}
 	{
