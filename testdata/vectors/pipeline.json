@@ -1,0 +1,810 @@
+{
+  "electrodb": "3.9.3",
+  "description": "The item pipeline: defaults, validation, setters and watchers on write; field translation; getters, watchers and hidden attributes on read; type checks; maps, lists and sets.",
+  "entities": {
+    "doc": {
+      "model": {"entity":"doc","version":"1","service":"taskapp"},
+      "attributes": {
+        "docId": {"type":"string","required":true},
+        "code": {"type":"string","set":{"$fn":"upper"},"validate":{"$fn":"regexp","args":["^[A-Z]+$"]}},
+        "title": {"type":"string","field":"t","get":{"$fn":"prefix","args":["got:"]}},
+        "count": {"type":"number"},
+        "done": {"type":"boolean"},
+        "kind": {"type":["note","task"],"default":"note"},
+        "status": {"type":"string","required":true,"default":"open"},
+        "tags": {"type":"set","items":"string"},
+        "scores": {"type":"set","items":"number"},
+        "meta": {
+          "type": "map",
+          "properties": {
+            "source": {"type":"string","default":"web"},
+            "rank": {"type":"number","field":"r"},
+            "inner": {"type":"map","properties":{"deep":{"type":"string","field":"d"}}}
+          }
+        },
+        "opts": {"type":"map","properties":{"a":{"type":"string"}}},
+        "steps": {
+          "type": "list",
+          "items": {
+            "type": "map",
+            "properties": {"name":{"type":"string","required":true,"field":"n"},"ok":{"type":"boolean"}}
+          }
+        },
+        "notes": {"type":"list","items":{"type":"string","validate":{"$fn":"minLength","args":[2]}}},
+        "blob": {"type":"any"},
+        "summary": {
+          "type": "string",
+          "watch": "*",
+          "set": {"$fn":"join","args":["/","kind","status"]},
+          "get": {"$fn":"upper"}
+        },
+        "secret": {"type":"string","hidden":true}
+      },
+      "indexes": {"primary":{"pk":{"field":"pk","composite":["docId"]},"sk":{"field":"sk","composite":[]}}}
+    }
+  },
+  "cases": [
+    {
+      "name": "put minimal applies defaults and watchAll",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1"}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "validation runs before setters",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","code":"abc"}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value for attribute \"code\": Failed model defined regex - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "code",
+                "reason": "Invalid value for attribute \"code\": Failed model defined regex"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "setter output is not validated",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","code":"ABC"}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "code": {"S":"ABC"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown root attributes are dropped",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","nope":1}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "field renames",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","title":"Hi"}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "t": {"S":"Hi"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "wrong scalar types",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","count":"5","done":"yes","title":3}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"title\". Received value of type \"number\", expected value of type \"string\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "title",
+                "reason": "Invalid value type at entity path: \"title\". Received value of type \"number\", expected value of type \"string\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"title\". Received value of type \"number\", expected value of type \"string\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "null for a string",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","title":null}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"title\". Received value of type \"object\", expected value of type \"string\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "title",
+                "reason": "Invalid value type at entity path: \"title\". Received value of type \"object\", expected value of type \"string\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"title\". Received value of type \"object\", expected value of type \"string\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid enum",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","kind":"memo"}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"kind\". Value not found in set of acceptable values: \"note\", \"task\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "kind",
+                "reason": "Invalid value type at entity path: \"kind\". Value not found in set of acceptable values: \"note\", \"task\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"kind\". Value not found in set of acceptable values: \"note\", \"task\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "explicit value overrides default",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","kind":"task","status":"closed"}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"task"},
+                "status": {"S":"closed"},
+                "summary": {"S":"task/closed"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "set dedupes",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","tags":["b","a","b"],"scores":[3,1,3]}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "tags": {"SS":["b","a"]},
+                "scores": {"NS":["3","1"]},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty set",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","tags":[]}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {"name":"Error","message":"Pass a non-empty set, or options.convertEmptyValues=true."}
+        }
+      }
+    },
+    {
+      "name": "set from a single string",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","tags":"solo"}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "tags": {"SS":["solo"]},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "set with a wrong item type",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","tags":["a",2]}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"tags[*]\". Received value of type \"number\", expected value of type \"string\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "tags[*]",
+                "reason": "Invalid value type at entity path: \"tags[*]\". Received value of type \"number\", expected value of type \"string\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"tags[*]\". Received value of type \"number\", expected value of type \"string\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "empty optional map",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","opts":{}}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "opts": {"M":{}},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "map applies nested defaults and renames",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","meta":{"rank":2,"inner":{"deep":"x"}}}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "meta": {"M":{"source":{"S":"web"},"r":{"N":"2"},"inner":{"M":{"d":{"S":"x"}}}}},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "empty map gets nested defaults",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","meta":{}}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "meta": {"M":{"source":{"S":"web"}}},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "map drops unknown properties",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","opts":{"a":"1","zz":"2"}}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "opts": {"M":{"a":{"S":"1"}}},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "map given a non-object",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","opts":"nope"}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroError",
+            "message": "Invalid value type at entity path: \"opts\". Expected value to be an object to fulfill attribute type \"map\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001
+          }
+        }
+      }
+    },
+    {
+      "name": "list of maps with renames",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","steps":[{"name":"a","ok":true},{"name":"b"}]}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "steps": {"L":[{"M":{"n":{"S":"a"},"ok":{"BOOL":true}}},{"M":{"n":{"S":"b"}}}]},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "list item missing a required property",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","steps":[{"ok":true}]}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"steps[*].name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "steps[*].name",
+                "index": 0,
+                "reason": "Invalid value type at entity path: \"steps[*].name\". Value is required.",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"steps[*].name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "list item failing validate",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","notes":["ok","x"]}]],
+      "go": false,
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value provided - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [{"field":"notes[*]","index":1,"reason":"Invalid value provided"}]
+          }
+        }
+      }
+    },
+    {
+      "name": "empty list",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","notes":[]}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "notes": {"L":[]},
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "any keeps nulls and nesting",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","blob":{"a":null,"b":[1,{"c":false}],"d":{}}}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "blob": {
+                  "M": {"a":{"NULL":true},"b":{"L":[{"N":"1"},{"M":{"c":{"BOOL":false}}}]},"d":{"M":{}}}
+                },
+                "summary": {"S":"note/open"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "hidden attribute is written",
+      "entity": "doc",
+      "chain": [["put",{"docId":"d1","secret":"s"}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "docId": {"S":"d1"},
+                "kind": {"S":"note"},
+                "status": {"S":"open"},
+                "summary": {"S":"note/open"},
+                "secret": {"S":"s"},
+                "pk": {"S":"$taskapp#docid_d1"},
+                "sk": {"S":"$doc_1"},
+                "__edb_e__": {"S":"doc"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "read formatting",
+      "entity": "doc",
+      "params": false,
+      "chain": [["get",{"docId":"d1"}]],
+      "responses": [
+        {
+          "Item": {
+            "pk": {"S":"$taskapp#docid_d1"},
+            "sk": {"S":"$doc_1"},
+            "docId": {"S":"d1"},
+            "t": {"S":"Hi"},
+            "kind": {"S":"note"},
+            "status": {"S":"open"},
+            "tags": {"SS":["a","b"]},
+            "scores": {"NS":["1","3"]},
+            "meta": {
+              "M": {"source":{"S":"web"},"r":{"N":"2"},"extra":{"S":"x"},"inner":{"M":{"d":{"S":"y"}}}}
+            },
+            "opts": {"M":{}},
+            "steps": {"L":[{"M":{"n":{"S":"a"},"ok":{"BOOL":true}}}]},
+            "blob": {"M":{"a":{"NULL":true}}},
+            "summary": {"S":"note/open"},
+            "secret": {"S":"s"},
+            "unknownField": {"S":"u"},
+            "__edb_e__": {"S":"doc"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ],
+      "recorded": {
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "docId": {"S":"d1"},
+                  "title": {"S":"got:Hi"},
+                  "kind": {"S":"note"},
+                  "status": {"S":"open"},
+                  "tags": {"L":[{"S":"a"},{"S":"b"}]},
+                  "scores": {"L":[{"N":"1"},{"N":"3"}]},
+                  "meta": {"M":{"source":{"S":"web"},"rank":{"N":"2"},"inner":{"M":{"deep":{"S":"y"}}}}},
+                  "opts": {"M":{}},
+                  "steps": {"L":[{"M":{"name":{"S":"a"},"ok":{"BOOL":true}}}]},
+                  "blob": {"M":{"a":{"NULL":true}}},
+                  "summary": {"S":"NOTE/OPEN"}
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "GetItem",
+              "request": {"Key":{"pk":{"S":"$taskapp#docid_d1"},"sk":{"S":"$doc_1"}},"TableName":"table"}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "read runs watchAll getters for absent attributes",
+      "entity": "doc",
+      "params": false,
+      "chain": [["get",{"docId":"d1"}]],
+      "responses": [
+        {
+          "Item": {
+            "pk": {"S":"$taskapp#docid_d1"},
+            "sk": {"S":"$doc_1"},
+            "docId": {"S":"d1"},
+            "status": {"S":"open"},
+            "__edb_e__": {"S":"doc"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ],
+      "recorded": {
+        "go": {
+          "result": {"M":{"data":{"M":{"docId":{"S":"d1"},"status":{"S":"open"}}}}},
+          "requests": [
+            {
+              "target": "GetItem",
+              "request": {"Key":{"pk":{"S":"$taskapp#docid_d1"},"sk":{"S":"$doc_1"}},"TableName":"table"}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "read with includeKeys",
+      "entity": "doc",
+      "params": false,
+      "chain": [["get",{"docId":"d1"}]],
+      "go": {"data":"includeKeys"},
+      "responses": [
+        {
+          "Item": {
+            "pk": {"S":"$taskapp#docid_d1"},
+            "sk": {"S":"$doc_1"},
+            "docId": {"S":"d1"},
+            "status": {"S":"open"},
+            "__edb_e__": {"S":"doc"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ],
+      "recorded": {
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "pk": {"S":"$taskapp#docid_d1"},
+                  "sk": {"S":"$doc_1"},
+                  "docId": {"S":"d1"},
+                  "status": {"S":"open"},
+                  "__edb_e__": {"S":"doc"},
+                  "__edb_v__": {"S":"1"}
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "GetItem",
+              "request": {"Key":{"pk":{"S":"$taskapp#docid_d1"},"sk":{"S":"$doc_1"}},"TableName":"table"}
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "read with attributes",
+      "entity": "doc",
+      "params": false,
+      "chain": [["get",{"docId":"d1"}]],
+      "go": {"attributes":["docId","title"]},
+      "responses": [{"Item":{"docId":{"S":"d1"},"t":{"S":"Hi"},"__edb_e__":{"S":"doc"},"__edb_v__":{"S":"1"}}}],
+      "recorded": {
+        "go": {
+          "result": {"M":{"data":{"M":{"docId":{"S":"d1"},"title":{"S":"got:Hi"}}}}},
+          "requests": [
+            {
+              "target": "GetItem",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#pk": "pk",
+                  "#sk": "sk",
+                  "#docId": "docId",
+                  "#t": "t",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__"
+                },
+                "Key": {"pk":{"S":"$taskapp#docid_d1"},"sk":{"S":"$doc_1"}},
+                "ProjectionExpression": "#pk, #sk, #docId, #t, #__edb_e__, #__edb_v__",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

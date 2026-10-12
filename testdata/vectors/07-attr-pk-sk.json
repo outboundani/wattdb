@@ -39,46 +39,8 @@
           }
         ]
       ],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "taskId": {"S":"t-1"},
-              "seq": {"N":"1"},
-              "changes": {
-                "L": [
-                  {"M":{"field":{"S":"status"},"from":{"S":"open"},"to":{"S":"done"}}},
-                  {"M":{"field":{"S":"title"}}}
-                ]
-              },
-              "visible": {"BOOL":true},
-              "__edb_e__": {"S":"event"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "taskId": {"S":"t-1"},
-                "seq": {"N":"1"},
-                "changes": {
-                  "L": [
-                    {"M":{"field":{"S":"status"},"from":{"S":"open"},"to":{"S":"done"}}},
-                    {"M":{"field":{"S":"title"}}}
-                  ]
-                },
-                "visible": {"BOOL":true}
-              }
-            }
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -98,31 +60,55 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "taskId": {"S":"t-1"},
+                  "seq": {"N":"1"},
+                  "changes": {
+                    "L": [
+                      {"M":{"field":{"S":"status"},"from":{"S":"open"},"to":{"S":"done"}}},
+                      {"M":{"field":{"S":"title"}}}
+                    ]
+                  },
+                  "visible": {"BOOL":true}
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "taskId": {"S":"t-1"},
+                  "seq": {"N":"1"},
+                  "changes": {
+                    "L": [
+                      {"M":{"field":{"S":"status"},"from":{"S":"open"},"to":{"S":"done"}}},
+                      {"M":{"field":{"S":"title"}}}
+                    ]
+                  },
+                  "visible": {"BOOL":true},
+                  "__edb_e__": {"S":"event"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "put with explicit false",
       "entity": "event",
       "chain": [["put",{"taskId":"T-1","seq":2,"visible":false}]],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "taskId": {"S":"t-1"},
-              "seq": {"N":"2"},
-              "visible": {"BOOL":false},
-              "__edb_e__": {"S":"event"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"M":{"taskId":{"S":"t-1"},"seq":{"N":"2"},"visible":{"BOOL":false}}}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -136,27 +122,33 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"M":{"taskId":{"S":"t-1"},"seq":{"N":"2"},"visible":{"BOOL":false}}}}},
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "taskId": {"S":"t-1"},
+                  "seq": {"N":"2"},
+                  "visible": {"BOOL":false},
+                  "__edb_e__": {"S":"event"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query sk gte",
       "entity": "event",
       "chain": [["query.primary",{"taskId":"T-1"}],["gte",{"seq":2}]],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"taskId","#sk1":"seq"},
-            "ExpressionAttributeValues": {":pk":{"S":"t-1"},":sk1":{"N":"2"}},
-            "KeyConditionExpression": "#pk = :pk and #sk1 >= :sk1",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -166,27 +158,29 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"taskId","#sk1":"seq"},
+                "ExpressionAttributeValues": {":pk":{"S":"t-1"},":sk1":{"N":"2"}},
+                "KeyConditionExpression": "#pk = :pk and #sk1 >= :sk1",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query sk between",
       "entity": "event",
       "chain": [["query.primary",{"taskId":"T-1"}],["between",{"seq":2},{"seq":10}]],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"taskId","#sk1":"seq"},
-            "ExpressionAttributeValues": {":pk":{"S":"t-1"},":sk1":{"N":"2"},":sk2":{"N":"10"}},
-            "KeyConditionExpression": "#pk = :pk and #sk1 BETWEEN :sk1 AND :sk2",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -196,7 +190,21 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"taskId","#sk1":"seq"},
+                "ExpressionAttributeValues": {":pk":{"S":"t-1"},":sk1":{"N":"2"},":sk2":{"N":"10"}},
+                "KeyConditionExpression": "#pk = :pk and #sk1 BETWEEN :sk1 AND :sk2",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     }
   ]

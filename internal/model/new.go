@@ -33,12 +33,22 @@ func New(def Definition) (*Model, error) {
 		if _, dup := m.attrs[ad.Name]; dup {
 			return nil, fmt.Errorf("duplicate attribute %q", ad.Name)
 		}
-		a := newAttribute(ad)
+		a, err := newAttribute(ad, "", "")
+		if err != nil {
+			return nil, err
+		}
+		a.IsRoot = true
 		m.Attributes = append(m.Attributes, a)
 		m.attrs[a.Name] = a
 	}
+	if err := checkAttributes(m.Attributes); err != nil {
+		return nil, err
+	}
 
 	if err := m.normalizeIndexes(def.Indexes); err != nil {
+		return nil, err
+	}
+	if err := m.checkComposites(); err != nil {
 		return nil, err
 	}
 	if err := m.checkKeyFieldAttributes(); err != nil {
@@ -51,29 +61,159 @@ func New(def Definition) (*Model, error) {
 	return m, nil
 }
 
-func newAttribute(ad AttributeDef) *Attribute {
+func newAttribute(ad AttributeDef, parentType AttrType, parentPath string) (*Attribute, error) {
 	a := &Attribute{
-		Name:     ad.Name,
-		Field:    ad.Field,
-		Type:     ad.Type,
-		Enum:     ad.Enum,
-		Label:    ad.Label,
-		Required: ad.Required,
-		Hidden:   ad.Hidden,
-		ReadOnly: ad.ReadOnly,
-		Padding:  ad.Padding,
-		SetItems: ad.SetItems,
+		Name:           ad.Name,
+		Field:          ad.Field,
+		Type:           ad.Type,
+		Enum:           ad.Enum,
+		Label:          ad.Label,
+		Required:       ad.Required,
+		Hidden:         ad.Hidden,
+		ReadOnly:       ad.ReadOnly,
+		Padding:        ad.Padding,
+		Cast:           ad.Cast,
+		Default:        ad.Default,
+		Get:            ad.Get,
+		Set:            ad.Set,
+		Validate:       ad.Validate,
+		ValidateRegexp: ad.ValidateRegexp,
+		Watch:          ad.Watch,
+		WatchAll:       ad.WatchAll,
 	}
 	if a.Field == "" {
 		a.Field = a.Name
 	}
-	if ad.Items != nil {
-		a.Items = newAttribute(*ad.Items)
+	if a.Type == "" {
+		a.Type = TypeString
 	}
-	for _, p := range ad.Properties {
-		a.Properties = append(a.Properties, newAttribute(p))
+	if a.WatchAll {
+		a.Watch = nil
 	}
-	return a
+	switch a.Type {
+	case TypeString, TypeNumber, TypeBoolean, TypeEnum, TypeMap, TypeList, TypeSet, TypeAny:
+	default:
+		return nil, fmt.Errorf("attribute %q: invalid type %q", a.Name, a.Type)
+	}
+	if a.Cast != "" && a.Cast != string(CastString) && a.Cast != string(CastNumber) {
+		return nil, fmt.Errorf("attribute %q: invalid cast %q", a.Name, a.Cast)
+	}
+	a.Path = attributePath(a.Name, a.Type, parentType, parentPath)
+
+	switch a.Type {
+	case TypeList, TypeSet:
+		if ad.Items == nil {
+			return nil, fmt.Errorf("attribute %q: %s needs items", a.Path, a.Type)
+		}
+		items := *ad.Items
+		if items.Name == "" {
+			items.Name = "*"
+		}
+		if a.Type == TypeSet {
+			if items.Type == "" {
+				items.Type = TypeString
+			}
+			switch items.Type {
+			case TypeString, TypeNumber, TypeBoolean, TypeEnum:
+			default:
+				return nil, fmt.Errorf("attribute %q: invalid set items %q", a.Path, items.Type)
+			}
+		}
+		it, err := newAttribute(items, a.Type, a.Path)
+		if err != nil {
+			return nil, err
+		}
+		a.Items = it
+	case TypeMap:
+		if ad.Properties == nil {
+			return nil, fmt.Errorf("attribute %q: map needs properties", a.Path)
+		}
+		for _, pd := range ad.Properties {
+			p, err := newAttribute(pd, a.Type, a.Path)
+			if err != nil {
+				return nil, err
+			}
+			a.Properties = append(a.Properties, p)
+		}
+		if err := checkAttributes(a.Properties); err != nil {
+			return nil, err
+		}
+	}
+	return a, nil
+}
+
+// attributePath mirrors ElectroDB's Attribute.buildPath.
+func attributePath(name string, typ, parentType AttrType, parentPath string) string {
+	if parentPath == "" {
+		return name
+	}
+	if parentType == TypeList || parentType == TypeSet {
+		return parentPath + "[*]"
+	}
+	if typ == TypeAny {
+		return parentPath + ".*"
+	}
+	return parentPath + "." + name
+}
+
+// checkAttributes mirrors the checks Schema.normalizeAttributes makes on one
+// level of attributes: unique fields and valid watchers.
+func checkAttributes(attrs []*Attribute) error {
+	used := map[string]string{}
+	byName := map[string]*Attribute{}
+	for _, a := range attrs {
+		if prev, ok := used[a.Field]; ok {
+			return fmt.Errorf("attribute %q: field %q is already used by attribute %q", a.Name, a.Field, prev)
+		}
+		if prev, ok := used[a.Name]; ok {
+			return fmt.Errorf("attribute %q: name is already used as a field by attribute %q", a.Name, prev)
+		}
+		used[a.Field] = a.Name
+		byName[a.Name] = a
+	}
+	for _, a := range attrs {
+		for _, w := range a.Watch {
+			watched, ok := byName[w]
+			if !ok {
+				return fmt.Errorf("attribute %q watches unknown attribute %q", a.Name, w)
+			}
+			if watched.IsWatcher() {
+				return fmt.Errorf("attribute %q watches %q, which is itself a watcher", a.Name, w)
+			}
+			watched.WatchedBy = append(watched.WatchedBy, a.Name)
+		}
+	}
+	return nil
+}
+
+// checkComposites mirrors Schema checks on key composites: each must be a
+// defined string, number, boolean or enum attribute. Table-index composites
+// become readOnly, and projections must name known attributes.
+func (m *Model) checkComposites() error {
+	for _, ix := range m.Indexes {
+		for _, name := range ix.Composites() {
+			a, ok := m.attrs[name]
+			if !ok {
+				return fmt.Errorf("access pattern %q: composite %q is not an attribute", ix.AccessPattern, name)
+			}
+			switch a.Type {
+			case TypeString, TypeNumber, TypeBoolean, TypeEnum:
+			default:
+				return fmt.Errorf("attribute %q is type %s, but composites must be string, number, boolean or enum", name, a.Type)
+			}
+			if ix.Name == "" {
+				a.ReadOnly = true
+			}
+		}
+		if ix.Projection != nil {
+			for _, name := range ix.Projection.Attributes {
+				if _, ok := m.attrs[name]; !ok && name != m.Identifiers.Entity && name != m.Identifiers.Version {
+					return fmt.Errorf("access pattern %q: unknown projection attribute %q", ix.AccessPattern, name)
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // keyComposites resolves a key's composites the way ElectroDB's
@@ -303,6 +443,13 @@ func (m *Model) checkKeyFieldAttributes() error {
 				for _, l := range k.Labels {
 					if l.Label != "" {
 						hasFixings = true
+					}
+				}
+				for _, l := range k.Labels {
+					if l.Name == a.Field {
+						a.KeyPrefix = l.Label
+					} else {
+						a.KeyPostfix = l.Label
 					}
 				}
 				if hasFixings && a.Type != TypeString && a.Type != TypeEnum {

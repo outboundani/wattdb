@@ -13,44 +13,8 @@
       "name": "put with nested any",
       "entity": "counter",
       "chain": [["put",{"counterId":12,"payload":{"a":1,"b":["x",2,true,null],"c":{"d":"e"}}}]],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "counterId": {"N":"12"},
-              "payload": {
-                "M": {
-                  "a": {"N":"1"},
-                  "b": {"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]},
-                  "c": {"M":{"d":{"S":"e"}}}
-                }
-              },
-              "__edb_e__": {"S":"counter"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "counterId": {"N":"12"},
-                "payload": {
-                  "M": {
-                    "a": {"N":"1"},
-                    "b": {"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]},
-                    "c": {"M":{"d":{"S":"e"}}}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -69,30 +33,53 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "counterId": {"N":"12"},
+                  "payload": {
+                    "M": {
+                      "a": {"N":"1"},
+                      "b": {"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]},
+                      "c": {"M":{"d":{"S":"e"}}}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "counterId": {"N":"12"},
+                  "payload": {
+                    "M": {
+                      "a": {"N":"1"},
+                      "b": {"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]},
+                      "c": {"M":{"d":{"S":"e"}}}
+                    }
+                  },
+                  "__edb_e__": {"S":"counter"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "put with scalar any",
       "entity": "counter",
       "chain": [["put",{"counterId":13,"payload":"plain"}]],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "counterId": {"N":"13"},
-              "payload": {"S":"plain"},
-              "__edb_e__": {"S":"counter"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"M":{"counterId":{"N":"13"},"payload":{"S":"plain"}}}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -105,7 +92,24 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"M":{"counterId":{"N":"13"},"payload":{"S":"plain"}}}}},
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "counterId": {"N":"13"},
+                  "payload": {"S":"plain"},
+                  "__edb_e__": {"S":"counter"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
@@ -122,19 +126,21 @@
           }
         }
       ],
-      "params": [{"target":"GetItem","request":{"Key":{"counterId":{"N":"12"}},"TableName":"table"}}],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "counterId": {"N":"12"},
-                "payload": {"M":{"a":{"N":"1"},"b":{"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]}}}
+      "recorded": {
+        "params": [{"target":"GetItem","request":{"Key":{"counterId":{"N":"12"}},"TableName":"table"}}],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "counterId": {"N":"12"},
+                  "payload": {"M":{"a":{"N":"1"},"b":{"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]}}}
+                }
               }
             }
-          }
-        },
-        "requests": [{"target":"GetItem","request":{"Key":{"counterId":{"N":"12"}},"TableName":"table"}}]
+          },
+          "requests": [{"target":"GetItem","request":{"Key":{"counterId":{"N":"12"}},"TableName":"table"}}]
+        }
       }
     }
   ]

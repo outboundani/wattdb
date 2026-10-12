@@ -1,5 +1,7 @@
 package model
 
+import "regexp"
+
 // AttrType is an attribute's type.
 type AttrType string
 
@@ -73,6 +75,12 @@ type Model struct {
 	facets     map[string][]Facet
 }
 
+// Undefined is JS's undefined: a value that is missing. Callbacks receive and
+// return it; nil is JS null.
+var Undefined = undefinedValue{}
+
+type undefinedValue struct{}
+
 // Attribute is a normalized attribute.
 type Attribute struct {
 	Name     string
@@ -82,12 +90,47 @@ type Attribute struct {
 	Label    *string
 	Required bool
 	Hidden   bool
+	// ReadOnly is true when written readOnly or when the attribute is a
+	// table-index composite.
 	ReadOnly bool
 	Padding  *Padding
+	Cast     string
+	// Path is ElectroDB's attribute path, e.g. "steps[*].name".
+	Path string
+
+	Default        func() any
+	Get            func(value any, item map[string]any) any
+	Set            func(value any, item map[string]any) any
+	Validate       func(value any) (bool, error)
+	ValidateRegexp *regexp.Regexp
+
+	Watch    []string
+	WatchAll bool
+	// WatchedBy lists the sibling attributes watching this one.
+	WatchedBy []string
+
+	// KeyPrefix and KeyPostfix are the template text around this attribute
+	// when its field is also a key field; reads strip them.
+	KeyPrefix  string
+	KeyPostfix string
 
 	Items      *Attribute
-	SetItems   AttrType
 	Properties []*Attribute
+	// IsRoot is true for root attributes.
+	IsRoot bool
+}
+
+// IsWatcher reports whether the attribute watches specific attributes.
+func (a *Attribute) IsWatcher() bool { return len(a.Watch) > 0 }
+
+// Property returns the map property with the given name.
+func (a *Attribute) Property(name string) (*Attribute, bool) {
+	for _, p := range a.Properties {
+		if p.Name == name {
+			return p, true
+		}
+	}
+	return nil, false
 }
 
 // Index is a normalized access pattern.

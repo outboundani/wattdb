@@ -43,49 +43,8 @@
           {"id":"AbC","org":"Acme","n":42,"b":true,"status":"Active","tags":["x"],"nick":"Zed"}
         ]
       ],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "id": {"S":"AbC"},
-              "org": {"S":"Acme"},
-              "n": {"N":"42"},
-              "b": {"BOOL":true},
-              "status": {"S":"Active"},
-              "tags": {"SS":["x"]},
-              "nk": {"S":"Zed"},
-              "pk": {"S":"$taskapp#o_acme"},
-              "sk": {"S":"$user_1#id_abc"},
-              "gsi1pk": {"S":"$taskapp#o_acme"},
-              "gsi1sk": {"S":"$c1#c2#user_1#n_00042#b_true"},
-              "gsi2pk": {"S":"$taskapp#status_active"},
-              "gsi2sk": {"S":"$cc#id_abc#user_1"},
-              "gsi3pk": {"S":"$taskapp$user_1#id_abc"},
-              "__edb_e__": {"S":"User"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "id": {"S":"AbC"},
-                "org": {"S":"Acme"},
-                "n": {"N":"42"},
-                "b": {"BOOL":true},
-                "status": {"S":"Active"},
-                "tags": {"L":[{"S":"x"}]},
-                "nick": {"S":"Zed"}
-              }
-            }
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -110,52 +69,58 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "id": {"S":"AbC"},
+                  "org": {"S":"Acme"},
+                  "n": {"N":"42"},
+                  "b": {"BOOL":true},
+                  "status": {"S":"Active"},
+                  "tags": {"L":[{"S":"x"}]},
+                  "nick": {"S":"Zed"}
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "id": {"S":"AbC"},
+                  "org": {"S":"Acme"},
+                  "n": {"N":"42"},
+                  "b": {"BOOL":true},
+                  "status": {"S":"Active"},
+                  "tags": {"SS":["x"]},
+                  "nk": {"S":"Zed"},
+                  "pk": {"S":"$taskapp#o_acme"},
+                  "sk": {"S":"$user_1#id_abc"},
+                  "gsi1pk": {"S":"$taskapp#o_acme"},
+                  "gsi1sk": {"S":"$c1#c2#user_1#n_00042#b_true"},
+                  "gsi2pk": {"S":"$taskapp#status_active"},
+                  "gsi2sk": {"S":"$cc#id_abc#user_1"},
+                  "gsi3pk": {"S":"$taskapp$user_1#id_abc"},
+                  "__edb_e__": {"S":"User"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "put small float",
       "entity": "user",
       "chain": [["put",{"id":"a","org":"o","n":0.000001,"b":false,"status":"Off"}]],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "id": {"S":"a"},
-              "org": {"S":"o"},
-              "n": {"N":"0.000001"},
-              "b": {"BOOL":false},
-              "status": {"S":"Off"},
-              "pk": {"S":"$taskapp#o_o"},
-              "sk": {"S":"$user_1#id_a"},
-              "gsi1pk": {"S":"$taskapp#o_o"},
-              "gsi1sk": {"S":"$c1#c2#user_1#n_0.000001#b_false"},
-              "gsi2pk": {"S":"$taskapp#status_off"},
-              "gsi2sk": {"S":"$cc#id_a#user_1"},
-              "gsi3pk": {"S":"$taskapp$user_1#id_a"},
-              "__edb_e__": {"S":"User"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "id": {"S":"a"},
-                "org": {"S":"o"},
-                "n": {"N":"0.000001"},
-                "b": {"BOOL":false},
-                "status": {"S":"Off"}
-              }
-            }
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -178,51 +143,79 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "id": {"S":"a"},
+                  "org": {"S":"o"},
+                  "n": {"N":"0.000001"},
+                  "b": {"BOOL":false},
+                  "status": {"S":"Off"}
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "id": {"S":"a"},
+                  "org": {"S":"o"},
+                  "n": {"N":"0.000001"},
+                  "b": {"BOOL":false},
+                  "status": {"S":"Off"},
+                  "pk": {"S":"$taskapp#o_o"},
+                  "sk": {"S":"$user_1#id_a"},
+                  "gsi1pk": {"S":"$taskapp#o_o"},
+                  "gsi1sk": {"S":"$c1#c2#user_1#n_0.000001#b_false"},
+                  "gsi2pk": {"S":"$taskapp#status_off"},
+                  "gsi2sk": {"S":"$cc#id_a#user_1"},
+                  "gsi3pk": {"S":"$taskapp$user_1#id_a"},
+                  "__edb_e__": {"S":"User"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "put 1e21 (DocumentClient rejects unsafe numbers)",
       "entity": "user",
       "chain": [["put",{"id":"a","org":"o","n":1e+21,"b":false,"status":"Off"}]],
-      "params": {
-        "error": {
-          "name": "Error",
-          "message": "Number 1e+21 is greater than Number.MAX_SAFE_INTEGER. Use BigInt. "
-        }
-      },
-      "go": {
-        "error": {
-          "name": "ElectroError",
-          "message": "Error thrown by DynamoDB client: \"Number 1e+21 is greater than Number.MAX_SAFE_INTEGER. Use BigInt. \" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#aws-error",
-          "code": 4001,
-          "cause": {
+      "recorded": {
+        "params": {
+          "error": {
             "name": "Error",
             "message": "Number 1e+21 is greater than Number.MAX_SAFE_INTEGER. Use BigInt. "
           }
         },
-        "requests": []
+        "go": {
+          "error": {
+            "name": "ElectroError",
+            "message": "Error thrown by DynamoDB client: \"Number 1e+21 is greater than Number.MAX_SAFE_INTEGER. Use BigInt. \" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#aws-error",
+            "code": 4001,
+            "cause": {
+              "name": "Error",
+              "message": "Number 1e+21 is greater than Number.MAX_SAFE_INTEGER. Use BigInt. "
+            }
+          },
+          "requests": []
+        }
       }
     },
     {
       "name": "query partial sk",
       "entity": "user",
       "chain": [["query.byN",{"org":"Acme","n":42}]],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk"},
-            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#o_acme"},":sk1":{"S":"$c1#c2#user_1#n_00042#b_"}},
-            "IndexName": "gsi1",
-            "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -233,28 +226,30 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#o_acme"},":sk1":{"S":"$c1#c2#user_1#n_00042#b_"}},
+                "IndexName": "gsi1",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query begins",
       "entity": "user",
       "chain": [["query.byN",{"org":"Acme"}],["begins",{"n":4}]],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk"},
-            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#o_acme"},":sk1":{"S":"$c1#c2#user_1#n_00004"}},
-            "IndexName": "gsi1",
-            "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -265,34 +260,30 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#o_acme"},":sk1":{"S":"$c1#c2#user_1#n_00004"}},
+                "IndexName": "gsi1",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query clustered partial",
       "entity": "user",
       "chain": [["query.cl",{"status":"Active"}]],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"gsi2pk","#sk1":"gsi2sk"},
-            "ExpressionAttributeValues": {
-              ":__edb_e__0": {"S":"User"},
-              ":__edb_v__0": {"S":"1"},
-              ":pk": {"S":"$taskapp#status_active"},
-              ":sk1": {"S":"$cc#id_"}
-            },
-            "FilterExpression": "(#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
-            "IndexName": "gsi2",
-            "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -309,42 +300,36 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"gsi2pk","#sk1":"gsi2sk"},
+                "ExpressionAttributeValues": {
+                  ":__edb_e__0": {"S":"User"},
+                  ":__edb_v__0": {"S":"1"},
+                  ":pk": {"S":"$taskapp#status_active"},
+                  ":sk1": {"S":"$cc#id_"}
+                },
+                "FilterExpression": "(#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
+                "IndexName": "gsi2",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "update set enum",
       "entity": "user",
       "chain": [["update",{"org":"Acme","id":"AbC"}],["set",{"status":"Off"}]],
-      "params": [
-        {
-          "target": "UpdateItem",
-          "request": {
-            "ExpressionAttributeNames": {
-              "#status": "status",
-              "#gsi2pk": "gsi2pk",
-              "#org": "org",
-              "#id": "id",
-              "#__edb_e__": "__edb_e__",
-              "#__edb_v__": "__edb_v__"
-            },
-            "ExpressionAttributeValues": {
-              ":status_u0": {"S":"Off"},
-              ":gsi2pk_u0": {"S":"$taskapp#status_off"},
-              ":org_u0": {"S":"Acme"},
-              ":id_u0": {"S":"AbC"},
-              ":__edb_e___u0": {"S":"User"},
-              ":__edb_v___u0": {"S":"1"}
-            },
-            "Key": {"pk":{"S":"$taskapp#o_acme"},"sk":{"S":"$user_1#id_abc"}},
-            "TableName": "table",
-            "UpdateExpression": "SET #status = :status_u0, #gsi2pk = :gsi2pk_u0, #org = :org_u0, #id = :id_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"M":{"org":{"S":"Acme"},"id":{"S":"AbC"}}}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "UpdateItem",
             "request": {
@@ -369,7 +354,36 @@
               "UpdateExpression": "SET #status = :status_u0, #gsi2pk = :gsi2pk_u0, #org = :org_u0, #id = :id_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"M":{"org":{"S":"Acme"},"id":{"S":"AbC"}}}}},
+          "requests": [
+            {
+              "target": "UpdateItem",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#status": "status",
+                  "#gsi2pk": "gsi2pk",
+                  "#org": "org",
+                  "#id": "id",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__"
+                },
+                "ExpressionAttributeValues": {
+                  ":status_u0": {"S":"Off"},
+                  ":gsi2pk_u0": {"S":"$taskapp#status_off"},
+                  ":org_u0": {"S":"Acme"},
+                  ":id_u0": {"S":"AbC"},
+                  ":__edb_e___u0": {"S":"User"},
+                  ":__edb_v___u0": {"S":"1"}
+                },
+                "Key": {"pk":{"S":"$taskapp#o_acme"},"sk":{"S":"$user_1#id_abc"}},
+                "TableName": "table",
+                "UpdateExpression": "SET #status = :status_u0, #gsi2pk = :gsi2pk_u0, #org = :org_u0, #id = :id_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+              }
+            }
+          ]
+        }
       }
     }
   ]

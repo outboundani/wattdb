@@ -18,31 +18,8 @@
       "name": "create lowercases the stored key attribute",
       "entity": "team",
       "chain": [["create",{"teamId":"T-AbC","name":"Core","plan":"pro","seats":5}]],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "ConditionExpression": "attribute_not_exists(#teamId)",
-            "ExpressionAttributeNames": {"#teamId":"teamId"},
-            "Item": {
-              "teamId": {"S":"t-abc"},
-              "name": {"S":"Core"},
-              "plan": {"S":"pro"},
-              "seats": {"N":"5"},
-              "__edb_e__": {"S":"team"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {"M":{"teamId":{"S":"t-abc"},"name":{"S":"Core"},"plan":{"S":"pro"},"seats":{"N":"5"}}}
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -59,7 +36,34 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {"teamId":{"S":"t-abc"},"name":{"S":"Core"},"plan":{"S":"pro"},"seats":{"N":"5"}}
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "ConditionExpression": "attribute_not_exists(#teamId)",
+                "ExpressionAttributeNames": {"#teamId":"teamId"},
+                "Item": {
+                  "teamId": {"S":"t-abc"},
+                  "name": {"S":"Core"},
+                  "plan": {"S":"pro"},
+                  "seats": {"N":"5"},
+                  "__edb_e__": {"S":"team"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
@@ -73,114 +77,120 @@
           "message": "The conditional request failed"
         }
       ],
-      "go": {
-        "error": {
-          "name": "ElectroError",
-          "message": "Error thrown by DynamoDB client: \"The conditional request failed\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#aws-error",
-          "code": 4001,
-          "cause": {"name":"ConditionalCheckFailedException","message":"The conditional request failed"}
-        },
-        "requests": [
-          {
-            "target": "PutItem",
-            "request": {
-              "ConditionExpression": "attribute_not_exists(#teamId)",
-              "ExpressionAttributeNames": {"#teamId":"teamId"},
-              "Item": {
-                "teamId": {"S":"t-abc"},
-                "name": {"S":"Core"},
-                "plan": {"S":"pro"},
-                "__edb_e__": {"S":"team"},
-                "__edb_v__": {"S":"1"}
-              },
-              "TableName": "table"
+      "recorded": {
+        "go": {
+          "error": {
+            "name": "ElectroError",
+            "message": "Error thrown by DynamoDB client: \"The conditional request failed\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#aws-error",
+            "code": 4001,
+            "cause": {"name":"ConditionalCheckFailedException","message":"The conditional request failed"}
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "ConditionExpression": "attribute_not_exists(#teamId)",
+                "ExpressionAttributeNames": {"#teamId":"teamId"},
+                "Item": {
+                  "teamId": {"S":"t-abc"},
+                  "name": {"S":"Core"},
+                  "plan": {"S":"pro"},
+                  "__edb_e__": {"S":"team"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
             }
-          }
-        ]
+          ]
+        }
       }
     },
     {
       "name": "put with an invalid enum",
       "entity": "team",
       "chain": [["put",{"teamId":"t-1","name":"Core","plan":"enterprise"}]],
-      "params": {
-        "error": {
-          "name": "ElectroValidationError",
-          "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-          "code": 3001,
-          "fields": [
-            {
-              "field": "plan",
-              "reason": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\"",
-              "cause": {
-                "name": "ElectroError",
-                "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-                "code": 3001
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "plan",
+                "reason": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
               }
-            }
-          ]
-        }
-      },
-      "go": {
-        "error": {
-          "name": "ElectroValidationError",
-          "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-          "code": 3001,
-          "fields": [
-            {
-              "field": "plan",
-              "reason": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\"",
-              "cause": {
-                "name": "ElectroError",
-                "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-                "code": 3001
-              }
-            }
-          ]
+            ]
+          }
         },
-        "requests": []
+        "go": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "plan",
+                "reason": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"plan\". Value not found in set of acceptable values: \"free\", \"pro\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          },
+          "requests": []
+        }
       }
     },
     {
       "name": "put missing a required attribute",
       "entity": "team",
       "chain": [["put",{"teamId":"t-1","plan":"free"}]],
-      "params": {
-        "error": {
-          "name": "ElectroValidationError",
-          "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-          "code": 3001,
-          "fields": [
-            {
-              "field": "name",
-              "reason": "Invalid value type at entity path: \"name\". Value is required.",
-              "cause": {
-                "name": "ElectroError",
-                "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-                "code": 3001
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "name",
+                "reason": "Invalid value type at entity path: \"name\". Value is required.",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
               }
-            }
-          ]
-        }
-      },
-      "go": {
-        "error": {
-          "name": "ElectroValidationError",
-          "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-          "code": 3001,
-          "fields": [
-            {
-              "field": "name",
-              "reason": "Invalid value type at entity path: \"name\". Value is required.",
-              "cause": {
-                "name": "ElectroError",
-                "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
-                "code": 3001
-              }
-            }
-          ]
+            ]
+          }
         },
-        "requests": []
+        "go": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "name",
+                "reason": "Invalid value type at entity path: \"name\". Value is required.",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"name\". Value is required. - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          },
+          "requests": []
+        }
       }
     },
     {
@@ -199,14 +209,18 @@
           }
         }
       ],
-      "params": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}],
-      "go": {
-        "result": {
-          "M": {
-            "data": {"M":{"teamId":{"S":"t-abc"},"name":{"S":"Core"},"plan":{"S":"pro"},"seats":{"N":"5"}}}
-          }
-        },
-        "requests": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}]
+      "recorded": {
+        "params": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {"teamId":{"S":"t-abc"},"name":{"S":"Core"},"plan":{"S":"pro"},"seats":{"N":"5"}}
+              }
+            }
+          },
+          "requests": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}]
+        }
       }
     },
     {
@@ -214,9 +228,11 @@
       "entity": "team",
       "chain": [["get",{"teamId":"t-404"}]],
       "params": false,
-      "go": {
-        "result": {"M":{"data":{"NULL":true}}},
-        "requests": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-404"}},"TableName":"table"}}]
+      "recorded": {
+        "go": {
+          "result": {"M":{"data":{"NULL":true}}},
+          "requests": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-404"}},"TableName":"table"}}]
+        }
       }
     },
     {
@@ -235,19 +251,23 @@
           }
         }
       ],
-      "go": {
-        "result": {"M":{"data":{"NULL":true}}},
-        "requests": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}]
+      "recorded": {
+        "go": {
+          "result": {"M":{"data":{"NULL":true}}},
+          "requests": [{"target":"GetItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}]
+        }
       }
     },
     {
       "name": "delete",
       "entity": "team",
       "chain": [["delete",{"teamId":"T-AbC"}]],
-      "params": [{"target":"DeleteItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}],
-      "go": {
-        "result": {"M":{"data":{"M":{"teamId":{"S":"T-AbC"}}}}},
-        "requests": [{"target":"DeleteItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}]
+      "recorded": {
+        "params": [{"target":"DeleteItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}],
+        "go": {
+          "result": {"M":{"data":{"M":{"teamId":{"S":"T-AbC"}}}}},
+          "requests": [{"target":"DeleteItem","request":{"Key":{"teamId":{"S":"t-abc"}},"TableName":"table"}}]
+        }
       }
     }
   ]

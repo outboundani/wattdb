@@ -69,15 +69,21 @@ func attributeDef(name string, data json.RawMessage) (model.AttributeDef, error)
 		data = json.RawMessage(`{"type":` + string(t) + `}`)
 	}
 	var raw struct {
-		Type       json.RawMessage  `json:"type"`
-		Field      string           `json:"field"`
-		Label      *string          `json:"label"`
-		Required   bool             `json:"required"`
-		Hidden     bool             `json:"hidden"`
-		ReadOnly   bool             `json:"readOnly"`
-		Padding    *model.Padding   `json:"padding"`
-		Items      *json.RawMessage `json:"items"`
-		Properties json.RawMessage  `json:"properties"`
+		Type       json.RawMessage `json:"type"`
+		Field      string          `json:"field"`
+		Label      *string         `json:"label"`
+		Required   bool            `json:"required"`
+		Hidden     bool            `json:"hidden"`
+		ReadOnly   bool            `json:"readOnly"`
+		Padding    *model.Padding  `json:"padding"`
+		Cast       string          `json:"cast"`
+		Default    json.RawMessage `json:"default"`
+		Get        *Fn             `json:"get"`
+		Set        *Fn             `json:"set"`
+		Validate   *Fn             `json:"validate"`
+		Watch      json.RawMessage `json:"watch"`
+		Items      json.RawMessage `json:"items"`
+		Properties json.RawMessage `json:"properties"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return a, err
@@ -88,35 +94,74 @@ func attributeDef(name string, data json.RawMessage) (model.AttributeDef, error)
 	a.Hidden = raw.Hidden
 	a.ReadOnly = raw.ReadOnly
 	a.Padding = raw.Padding
+	a.Cast = raw.Cast
 
 	if t := bytes.TrimSpace(raw.Type); len(t) > 0 && t[0] == '[' {
 		a.Type = model.TypeEnum
 		if err := json.Unmarshal(t, &a.Enum); err != nil {
 			return a, err
 		}
-	} else if err := json.Unmarshal(raw.Type, &a.Type); err != nil {
-		return a, err
+	} else if len(t) > 0 {
+		if err := json.Unmarshal(t, &a.Type); err != nil {
+			return a, err
+		}
 	}
 
-	if raw.Items != nil {
-		switch a.Type {
-		case model.TypeSet:
-			if err := json.Unmarshal(*raw.Items, &a.SetItems); err != nil {
+	if d := bytes.TrimSpace(raw.Default); len(d) > 0 {
+		def, err := defaultFn(d)
+		if err != nil {
+			return a, fmt.Errorf("default: %w", err)
+		}
+		a.Default = def
+	}
+	var err error
+	if raw.Get != nil {
+		if a.Get, err = raw.Get.Transform(); err != nil {
+			return a, fmt.Errorf("get: %w", err)
+		}
+	}
+	if raw.Set != nil {
+		if a.Set, err = raw.Set.Transform(); err != nil {
+			return a, fmt.Errorf("set: %w", err)
+		}
+	}
+	if raw.Validate != nil {
+		if raw.Validate.Name == "regexp" {
+			if a.ValidateRegexp, err = raw.Validate.Regexp(); err != nil {
+				return a, fmt.Errorf("validate: %w", err)
+			}
+		} else if a.Validate, err = raw.Validate.Validator(); err != nil {
+			return a, fmt.Errorf("validate: %w", err)
+		}
+	}
+	if w := bytes.TrimSpace(raw.Watch); len(w) > 0 {
+		if w[0] == '"' {
+			var s string
+			if err := json.Unmarshal(w, &s); err != nil {
 				return a, err
 			}
-		default:
-			items, err := attributeDef("", *raw.Items)
-			if err != nil {
-				return a, fmt.Errorf("items: %w", err)
+			if s != "*" {
+				return a, fmt.Errorf("watch must be an array or \"*\"")
 			}
-			a.Items = &items
+			a.WatchAll = true
+		} else if err := json.Unmarshal(w, &a.Watch); err != nil {
+			return a, err
 		}
+	}
+
+	if items := bytes.TrimSpace(raw.Items); len(items) > 0 {
+		it, err := attributeDef("", items)
+		if err != nil {
+			return a, fmt.Errorf("items: %w", err)
+		}
+		a.Items = &it
 	}
 	if len(raw.Properties) > 0 {
 		props, err := objectMembers(raw.Properties)
 		if err != nil {
 			return a, err
 		}
+		a.Properties = []model.AttributeDef{}
 		for _, p := range props {
 			pa, err := attributeDef(p.Key, p.Value)
 			if err != nil {
@@ -126,6 +171,22 @@ func attributeDef(name string, data json.RawMessage) (model.AttributeDef, error)
 		}
 	}
 	return a, nil
+}
+
+// defaultFn resolves a default: a $fn, or a constant (decoded fresh on each
+// call, so callers can't share mutable values).
+func defaultFn(data json.RawMessage) (func() any, error) {
+	var fn Fn
+	if data[0] == '{' && json.Unmarshal(data, &fn) == nil && fn.Name != "" {
+		return fn.Default()
+	}
+	if _, err := Value(data); err != nil {
+		return nil, err
+	}
+	return func() any {
+		v, _ := Value(data)
+		return v
+	}, nil
 }
 
 func indexDef(pattern string, data json.RawMessage) (model.IndexDef, error) {

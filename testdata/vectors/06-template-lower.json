@@ -13,33 +13,8 @@
       "name": "put",
       "entity": "label",
       "chain": [["put",{"name":"Bug-Fix","colors":{"light":"#FF0000","dark":"#880000"}}]],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "name": {"S":"Bug-Fix"},
-              "colors": {"M":{"light":{"S":"#FF0000"},"dark":{"S":"#880000"}}},
-              "identifier": {"S":"label#bug-fix"},
-              "__edb_e__": {"S":"label"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "name": {"S":"Bug-Fix"},
-                "colors": {"M":{"light":{"S":"#FF0000"},"dark":{"S":"#880000"}}}
-              }
-            }
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -53,7 +28,34 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "name": {"S":"Bug-Fix"},
+                  "colors": {"M":{"light":{"S":"#FF0000"},"dark":{"S":"#880000"}}}
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "name": {"S":"Bug-Fix"},
+                  "colors": {"M":{"light":{"S":"#FF0000"},"dark":{"S":"#880000"}}},
+                  "identifier": {"S":"label#bug-fix"},
+                  "__edb_e__": {"S":"label"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
@@ -71,29 +73,31 @@
           }
         }
       ],
-      "params": [
-        {
-          "target": "GetItem",
-          "request": {"Key":{"identifier":{"S":"label#bug-fix"}},"TableName":"table"}
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "name": {"S":"Bug-Fix"},
-                "colors": {"M":{"light":{"S":"#FF0000"},"dark":{"S":"#880000"}}}
-              }
-            }
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "GetItem",
             "request": {"Key":{"identifier":{"S":"label#bug-fix"}},"TableName":"table"}
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "name": {"S":"Bug-Fix"},
+                  "colors": {"M":{"light":{"S":"#FF0000"},"dark":{"S":"#880000"}}}
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "GetItem",
+              "request": {"Key":{"identifier":{"S":"label#bug-fix"}},"TableName":"table"}
+            }
+          ]
+        }
       }
     }
   ]

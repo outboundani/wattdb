@@ -167,32 +167,3 @@ func AttributeMap(data json.RawMessage) (map[string]types.AttributeValue, error)
 	}
 	return out, nil
 }
-
-// FromAttributeValue converts a scalar AttributeValue to an engine value.
-// Other types are returned unchanged.
-func FromAttributeValue(av types.AttributeValue) any {
-	switch av := av.(type) {
-	case *types.AttributeValueMemberS:
-		return av.Value
-	case *types.AttributeValueMemberN:
-		return engine.Number(av.Value)
-	case *types.AttributeValueMemberBOOL:
-		return av.Value
-	default:
-		return av
-	}
-}
-
-// ToAttributeValue converts a scalar engine value to an AttributeValue.
-func ToAttributeValue(v any) (types.AttributeValue, error) {
-	switch v := v.(type) {
-	case string:
-		return &types.AttributeValueMemberS{Value: v}, nil
-	case engine.Number:
-		return &types.AttributeValueMemberN{Value: string(v)}, nil
-	case bool:
-		return &types.AttributeValueMemberBOOL{Value: v}, nil
-	default:
-		return nil, fmt.Errorf("unsupported engine value %T", v)
-	}
-}

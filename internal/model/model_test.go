@@ -60,6 +60,11 @@ func TestNewErrors(t *testing.T) {
 		{"condition on table index", base(IndexDef{AccessPattern: "p", Condition: func(map[string]any) bool { return true }, PK: KeyDef{Field: "pk", Composite: []string{"a"}}}), "only allowed on secondary"},
 		{"same field for pk and sk", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "k", Composite: []string{"a"}}, SK: &KeyDef{Field: "k", Composite: []string{"b"}}}), "both pk and sk"},
 		{"attribute key field with two composites", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "a", Composite: []string{"a", "b"}}}), "can't have other composites"},
+		{"unknown composite", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"zz"}}}), "not an attribute"},
+		{"map composite", Definition{Entity: "e", Version: "1", Service: "s", Attributes: []AttributeDef{{Name: "m", Type: TypeMap, Properties: []AttributeDef{}}}, Indexes: []IndexDef{{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"m"}}}}}, "composites must be"},
+		{"duplicate field", Definition{Entity: "e", Version: "1", Service: "s", Attributes: []AttributeDef{{Name: "a", Field: "f"}, {Name: "b", Field: "f"}}, Indexes: []IndexDef{{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"a"}}}}}, "already used"},
+		{"watching a watcher", Definition{Entity: "e", Version: "1", Service: "s", Attributes: []AttributeDef{{Name: "a"}, {Name: "b", Watch: []string{"a"}}, {Name: "c", Watch: []string{"b"}}}, Indexes: []IndexDef{{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"a"}}}}}, "itself a watcher"},
+		{"watching an unknown attribute", Definition{Entity: "e", Version: "1", Service: "s", Attributes: []AttributeDef{{Name: "a", Watch: []string{"zz"}}}, Indexes: []IndexDef{{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"a"}}}}}, "unknown attribute"},
 		{"template mismatch", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"a"}, Template: ptr("x#${b}")}}), "don't match"},
 	}
 	for _, tt := range tests {

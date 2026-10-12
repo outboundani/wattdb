@@ -52,58 +52,8 @@
           }
         ]
       ],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "orgId": {"S":"O-1"},
-              "userId": {"S":"U-1"},
-              "email": {"S":"Ada@Example.com"},
-              "role": {"S":"member"},
-              "status": {"S":"active"},
-              "profile": {
-                "M": {
-                  "displayName": {"S":"Ada"},
-                  "links": {"L":[{"S":"a"},{"S":"b"}]},
-                  "address": {"M":{"city":{"S":"London"},"postalCode":{"S":"N1"}}}
-                }
-              },
-              "pk": {"S":"$taskapp#orgid_o-1"},
-              "sk": {"S":"$user_1#userid_u-1"},
-              "gsi1pk": {"S":"$taskapp#email_ada@example.com"},
-              "gsi1sk": {"S":"$user_1"},
-              "gsi2pk": {"S":"$taskapp#orgid_o-1"},
-              "gsi2sk": {"S":"$user_1#role_member#userid_u-1"},
-              "__edb_e__": {"S":"user"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "M": {
-                "orgId": {"S":"O-1"},
-                "userId": {"S":"U-1"},
-                "email": {"S":"Ada@Example.com"},
-                "role": {"S":"member"},
-                "status": {"S":"active"},
-                "profile": {
-                  "M": {
-                    "displayName": {"S":"Ada"},
-                    "links": {"L":[{"S":"a"},{"S":"b"}]},
-                    "address": {"M":{"city":{"S":"London"},"zip":{"S":"N1"}}}
-                  }
-                }
-              }
-            }
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -132,28 +82,67 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "orgId": {"S":"O-1"},
+                  "userId": {"S":"U-1"},
+                  "email": {"S":"Ada@Example.com"},
+                  "role": {"S":"member"},
+                  "status": {"S":"active"},
+                  "profile": {
+                    "M": {
+                      "displayName": {"S":"Ada"},
+                      "links": {"L":[{"S":"a"},{"S":"b"}]},
+                      "address": {"M":{"city":{"S":"London"},"zip":{"S":"N1"}}}
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "orgId": {"S":"O-1"},
+                  "userId": {"S":"U-1"},
+                  "email": {"S":"Ada@Example.com"},
+                  "role": {"S":"member"},
+                  "status": {"S":"active"},
+                  "profile": {
+                    "M": {
+                      "displayName": {"S":"Ada"},
+                      "links": {"L":[{"S":"a"},{"S":"b"}]},
+                      "address": {"M":{"city":{"S":"London"},"postalCode":{"S":"N1"}}}
+                    }
+                  },
+                  "pk": {"S":"$taskapp#orgid_o-1"},
+                  "sk": {"S":"$user_1#userid_u-1"},
+                  "gsi1pk": {"S":"$taskapp#email_ada@example.com"},
+                  "gsi1sk": {"S":"$user_1"},
+                  "gsi2pk": {"S":"$taskapp#orgid_o-1"},
+                  "gsi2sk": {"S":"$user_1#role_member#userid_u-1"},
+                  "__edb_e__": {"S":"user"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query by role with partial sk",
       "entity": "user",
       "chain": [["query.byRole",{"orgId":"O-1","role":"admin"}]],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk"},
-            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o-1"},":sk1":{"S":"$user_1#role_admin#userid_"}},
-            "IndexName": "gsi2",
-            "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -164,28 +153,30 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o-1"},":sk1":{"S":"$user_1#role_admin#userid_"}},
+                "IndexName": "gsi2",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query by email",
       "entity": "user",
       "chain": [["query.byEmail",{"email":"Ada@Example.com"}]],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk"},
-            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#email_ada@example.com"},":sk1":{"S":"$user_1"}},
-            "IndexName": "gsi1",
-            "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -196,72 +187,29 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#email_ada@example.com"},":sk1":{"S":"$user_1"}},
+                "IndexName": "gsi1",
+                "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "scan all pages",
       "entity": "user",
       "chain": [["scan"]],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "L": [
-                {
-                  "M": {
-                    "orgId": {"S":"O-1"},
-                    "userId": {"S":"U-1"},
-                    "email": {"S":"a@example.com"},
-                    "role": {"S":"member"},
-                    "profile": {"M":{"address":{"M":{"zip":{"S":"N1"}}}}}
-                  }
-                },
-                {
-                  "M": {
-                    "orgId": {"S":"O-1"},
-                    "userId": {"S":"U-2"},
-                    "email": {"S":"b@example.com"},
-                    "role": {"S":"admin"}
-                  }
-                }
-              ]
-            },
-            "cursor": {"NULL":true}
-          }
-        },
-        "requests": [
-          {
-            "target": "Scan",
-            "request": {
-              "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
-              "ExpressionAttributeValues": {
-                ":__edb_e__0": {"S":"user"},
-                ":__edb_v__0": {"S":"1"},
-                ":pk": {"S":"$taskapp#orgid_"},
-                ":sk": {"S":"$user_1#userid_"}
-              },
-              "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
-              "TableName": "table"
-            }
-          },
-          {
-            "target": "Scan",
-            "request": {
-              "ExclusiveStartKey": {"pk":{"S":"$taskapp#orgid_o-1"},"sk":{"S":"$user_1#userid_u-1"}},
-              "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
-              "ExpressionAttributeValues": {
-                ":__edb_e__0": {"S":"user"},
-                ":__edb_v__0": {"S":"1"},
-                ":pk": {"S":"$taskapp#orgid_"},
-                ":sk": {"S":"$user_1#userid_"}
-              },
-              "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
-              "TableName": "table"
-            }
-          }
-        ]
-      },
+      "go": {"pages":"all"},
       "responses": [
         {
           "Items": [
@@ -298,22 +246,83 @@
           "ScannedCount": 1
         }
       ],
-      "params": [
-        {
-          "target": "Scan",
-          "request": {
-            "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
-            "ExpressionAttributeValues": {
-              ":__edb_e__0": {"S":"user"},
-              ":__edb_v__0": {"S":"1"},
-              ":pk": {"S":"$taskapp#orgid_"},
-              ":sk": {"S":"$user_1#userid_"}
-            },
-            "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
-            "TableName": "table"
+      "recorded": {
+        "params": [
+          {
+            "target": "Scan",
+            "request": {
+              "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
+              "ExpressionAttributeValues": {
+                ":__edb_e__0": {"S":"user"},
+                ":__edb_v__0": {"S":"1"},
+                ":pk": {"S":"$taskapp#orgid_"},
+                ":sk": {"S":"$user_1#userid_"}
+              },
+              "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
+              "TableName": "table"
+            }
           }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [
+                  {
+                    "M": {
+                      "orgId": {"S":"O-1"},
+                      "userId": {"S":"U-1"},
+                      "email": {"S":"a@example.com"},
+                      "role": {"S":"member"},
+                      "profile": {"M":{"address":{"M":{"zip":{"S":"N1"}}}}}
+                    }
+                  },
+                  {
+                    "M": {
+                      "orgId": {"S":"O-1"},
+                      "userId": {"S":"U-2"},
+                      "email": {"S":"b@example.com"},
+                      "role": {"S":"admin"}
+                    }
+                  }
+                ]
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Scan",
+              "request": {
+                "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
+                "ExpressionAttributeValues": {
+                  ":__edb_e__0": {"S":"user"},
+                  ":__edb_v__0": {"S":"1"},
+                  ":pk": {"S":"$taskapp#orgid_"},
+                  ":sk": {"S":"$user_1#userid_"}
+                },
+                "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
+                "TableName": "table"
+              }
+            },
+            {
+              "target": "Scan",
+              "request": {
+                "ExclusiveStartKey": {"pk":{"S":"$taskapp#orgid_o-1"},"sk":{"S":"$user_1#userid_u-1"}},
+                "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
+                "ExpressionAttributeValues": {
+                  ":__edb_e__0": {"S":"user"},
+                  ":__edb_v__0": {"S":"1"},
+                  ":pk": {"S":"$taskapp#orgid_"},
+                  ":sk": {"S":"$user_1#userid_"}
+                },
+                "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
+                "TableName": "table"
+              }
+            }
+          ]
         }
-      ]
+      }
     },
     {
       "name": "query one page returns a cursor",
@@ -328,56 +337,62 @@
           "LastEvaluatedKey": {"pk":{"S":"$taskapp#orgid_o-1"},"sk":{"S":"$user_1#userid_u-1"}}
         }
       ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {"L":[]},
-            "cursor": {"S":"eyJwayI6IiR0YXNrYXBwI29yZ2lkX28tMSIsInNrIjoiJHVzZXJfMSN1c2VyaWRfdS0xIn0"}
-          }
-        },
-        "requests": [
-          {
-            "target": "Query",
-            "request": {
-              "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
-              "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o-1"},":sk1":{"S":"$user_1#userid_"}},
-              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
-              "TableName": "table"
+      "recorded": {
+        "go": {
+          "result": {
+            "M": {
+              "data": {"L":[]},
+              "cursor": {"S":"eyJwayI6IiR0YXNrYXBwI29yZ2lkX28tMSIsInNrIjoiJHVzZXJfMSN1c2VyaWRfdS0xIn0"}
             }
-          }
-        ]
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o-1"},":sk1":{"S":"$user_1#userid_"}},
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query with a cursor",
       "entity": "user",
       "chain": [["query.primary",{"orgId":"O-1"}]],
-      "go": {
-        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
-        "requests": [
+      "go": {"cursor":"eyJwayI6IiR0YXNrYXBwI29yZ2lkX28tMSIsInNrIjoiJHVzZXJfMSN1c2VyaWRfdS0xIn0"},
+      "params": {"cursor":"eyJwayI6IiR0YXNrYXBwI29yZ2lkX28tMSIsInNrIjoiJHVzZXJfMSN1c2VyaWRfdS0xIn0"},
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
-              "ExclusiveStartKey": {"pk":{"S":"$taskapp#orgid_o-1"},"sk":{"S":"$user_1#userid_u-1"}},
               "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
               "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o-1"},":sk1":{"S":"$user_1#userid_"}},
               "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
               "TableName": "table"
             }
           }
-        ]
-      },
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
-            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o-1"},":sk1":{"S":"$user_1#userid_"}},
-            "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
-            "TableName": "table"
-          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExclusiveStartKey": {"pk":{"S":"$taskapp#orgid_o-1"},"sk":{"S":"$user_1#userid_u-1"}},
+                "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o-1"},":sk1":{"S":"$user_1#userid_"}},
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
         }
-      ]
+      }
     }
   ]
 }

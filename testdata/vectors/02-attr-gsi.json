@@ -20,26 +20,8 @@
       "name": "put",
       "entity": "project",
       "chain": [["put",{"projectId":"P-1","ownerId":"U-Mixed","title":"Launch"}]],
-      "params": [
-        {
-          "target": "PutItem",
-          "request": {
-            "Item": {
-              "projectId": {"S":"p-1"},
-              "ownerId": {"S":"u-mixed"},
-              "title": {"S":"Launch"},
-              "__edb_e__": {"S":"project"},
-              "__edb_v__": {"S":"1"}
-            },
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {"data":{"M":{"projectId":{"S":"p-1"},"ownerId":{"S":"u-mixed"},"title":{"S":"Launch"}}}}
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "PutItem",
             "request": {
@@ -53,7 +35,29 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {"M":{"projectId":{"S":"p-1"},"ownerId":{"S":"u-mixed"},"title":{"S":"Launch"}}}
+            }
+          },
+          "requests": [
+            {
+              "target": "PutItem",
+              "request": {
+                "Item": {
+                  "projectId": {"S":"p-1"},
+                  "ownerId": {"S":"u-mixed"},
+                  "title": {"S":"Launch"},
+                  "__edb_e__": {"S":"project"},
+                  "__edb_v__": {"S":"1"}
+                },
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
@@ -88,26 +92,8 @@
           "ScannedCount": 3
         }
       ],
-      "params": [
-        {
-          "target": "Query",
-          "request": {
-            "ExpressionAttributeNames": {"#pk":"ownerId"},
-            "ExpressionAttributeValues": {":pk":{"S":"u-mixed"}},
-            "IndexName": "ownerId",
-            "KeyConditionExpression": "#pk = :pk",
-            "TableName": "table"
-          }
-        }
-      ],
-      "go": {
-        "result": {
-          "M": {
-            "data": {"L":[{"M":{"projectId":{"S":"p-1"},"ownerId":{"S":"u-mixed"},"title":{"S":"Launch"}}}]},
-            "cursor": {"NULL":true}
-          }
-        },
-        "requests": [
+      "recorded": {
+        "params": [
           {
             "target": "Query",
             "request": {
@@ -118,35 +104,36 @@
               "TableName": "table"
             }
           }
-        ]
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [{"M":{"projectId":{"S":"p-1"},"ownerId":{"S":"u-mixed"},"title":{"S":"Launch"}}}]
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"ownerId"},
+                "ExpressionAttributeValues": {":pk":{"S":"u-mixed"}},
+                "IndexName": "ownerId",
+                "KeyConditionExpression": "#pk = :pk",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
       }
     },
     {
       "name": "query by owner ignoring ownership",
       "entity": "project",
       "chain": [["query.byOwner",{"ownerId":"u-mixed"}]],
-      "go": {
-        "result": {
-          "M": {
-            "data": {
-              "L": [{"M":{"projectId":{"S":"p-3"},"ownerId":{"S":"u-mixed"},"title":{"S":"Foreign"}}}]
-            },
-            "cursor": {"NULL":true}
-          }
-        },
-        "requests": [
-          {
-            "target": "Query",
-            "request": {
-              "ExpressionAttributeNames": {"#pk":"ownerId"},
-              "ExpressionAttributeValues": {":pk":{"S":"u-mixed"}},
-              "IndexName": "ownerId",
-              "KeyConditionExpression": "#pk = :pk",
-              "TableName": "table"
-            }
-          }
-        ]
-      },
+      "go": {"ignoreOwnership":true},
       "params": false,
       "responses": [
         {
@@ -162,7 +149,31 @@
           "Count": 1,
           "ScannedCount": 1
         }
-      ]
+      ],
+      "recorded": {
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [{"M":{"projectId":{"S":"p-3"},"ownerId":{"S":"u-mixed"},"title":{"S":"Foreign"}}}]
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"ownerId"},
+                "ExpressionAttributeValues": {":pk":{"S":"u-mixed"}},
+                "IndexName": "ownerId",
+                "KeyConditionExpression": "#pk = :pk",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
     }
   ]
 }

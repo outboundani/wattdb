@@ -157,7 +157,7 @@ func itemAttrs(m *model.Model, item map[string]types.AttributeValue) engine.Attr
 	out := engine.Attrs{}
 	for _, a := range m.Attributes {
 		if av, ok := item[a.Field]; ok {
-			out[a.Name] = vectors.FromAttributeValue(av)
+			out[a.Name] = engine.FromAttributeValue(av)
 		}
 	}
 	return out
@@ -215,7 +215,7 @@ func attributeMap(t *testing.T, data json.RawMessage) map[string]types.Attribute
 
 func toAV(t *testing.T, v any) types.AttributeValue {
 	t.Helper()
-	av, err := vectors.ToAttributeValue(v)
+	av, err := engine.ToAttributeValue(v)
 	if err != nil {
 		t.Fatal(err)
 	}

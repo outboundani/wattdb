@@ -34,7 +34,9 @@ func (e *IncompleteCompositesError) Unwrap() error { return ErrIncompleteComposi
 type FieldError struct {
 	Path   string
 	Reason string
-	Cause  error
+	// Index is the list index the error occurred at, if any.
+	Index *int
+	Cause error
 }
 
 // ValidationError reports invalid attribute values.

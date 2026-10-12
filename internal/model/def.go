@@ -1,5 +1,7 @@
 package model
 
+import "regexp"
+
 // Definition is an entity schema as written: the Go equivalent of an
 // ElectroDB v1 schema object. The schema DSL and the vector loader both
 // produce Definitions, and New normalizes one into a Model.
@@ -33,10 +35,24 @@ type AttributeDef struct {
 	Hidden   bool
 	ReadOnly bool
 	Padding  *Padding
+	// Cast is "string" or "number" to coerce written values. Empty means none.
+	Cast string
 
-	// Items describes list items. For sets, SetItems names the item type.
-	Items    *AttributeDef
-	SetItems AttrType
+	// Callbacks take and return engine values, with Undefined for a missing
+	// value. Nil means none.
+	Default        func() any
+	Get            func(value any, item map[string]any) any
+	Set            func(value any, item map[string]any) any
+	Validate       func(value any) (bool, error)
+	ValidateRegexp *regexp.Regexp
+
+	// Watch lists the sibling attributes this attribute's get/set watch.
+	// WatchAll watches every attribute ("*").
+	Watch    []string
+	WatchAll bool
+
+	// Items describes list and set items.
+	Items *AttributeDef
 	// Properties lists the attributes of a map, in order.
 	Properties []AttributeDef
 }

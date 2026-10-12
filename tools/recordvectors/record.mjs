@@ -110,19 +110,20 @@ async function recordCase(env, c) {
   }
   const build = () => applyChain(target, resolve(c.chain, txRegistry));
 
-  const out = { ...c };
+  const recorded = {};
+  const out = { ...c, recorded };
   let chain;
   try {
     chain = build();
   } catch (err) {
-    out.error = errorJSON(err);
+    recorded.error = errorJSON(err);
     return out;
   }
 
   // Chains that don't end in a request builder (parse, conversions, ...) are
   // recorded as a plain value.
   if (!isChain(chain)) {
-    out.value = encode(chain);
+    recorded.value = encode(chain);
     return out;
   }
 
@@ -136,9 +137,9 @@ async function recordCase(env, c) {
         const Command = commandFor(p, c.chain);
         await client.send(new Command(p));
       }
-      out.params = transport.requests;
+      recorded.params = transport.requests;
     } catch (err) {
-      out.params = { error: errorJSON(err) };
+      recorded.params = { error: errorJSON(err) };
     }
   }
 
@@ -154,7 +155,7 @@ async function recordCase(env, c) {
     if (transport.responses.length > 0) {
       throw new Error(`case "${c.name}": ${transport.responses.length} scripted responses were never used`);
     }
-    out.go = go;
+    recorded.go = go;
   }
   return out;
 }

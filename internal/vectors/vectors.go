@@ -36,14 +36,21 @@ type Case struct {
 	Entity  string `json:"entity"`
 	Service string `json:"service"`
 	Chain   []Step `json:"-"`
+	// ParamsOptions and GoOptions are the options the terminals were called
+	// with; nil when not given.
+	ParamsOptions json.RawMessage `json:"-"`
+	GoOptions     json.RawMessage `json:"-"`
+	// Responses are the scripted wire responses for .go().
+	Responses []json.RawMessage `json:"responses"`
+
 	// Params is the wire form of .params(); nil when skipped or on error.
 	Params      []Request `json:"-"`
 	ParamsError *Error    `json:"-"`
 	// Go is nil when .go() wasn't run.
-	Go        *Go               `json:"-"`
-	Value     json.RawMessage   `json:"-"`
-	Error     *Error            `json:"error"`
-	Responses []json.RawMessage `json:"-"`
+	Go    *Go             `json:"-"`
+	Value json.RawMessage `json:"-"`
+	// Error is set when building the chain threw.
+	Error *Error `json:"-"`
 }
 
 // Step is one chain call.
@@ -177,23 +184,19 @@ func parseCase(data json.RawMessage) (Case, error) {
 		return c, err
 	}
 	var extra struct {
-		Chain     [][]json.RawMessage `json:"chain"`
-		Params    json.RawMessage     `json:"params"`
-		Go        json.RawMessage     `json:"go"`
-		Value     json.RawMessage     `json:"value"`
-		Responses []json.RawMessage   `json:"responses"`
+		Chain    [][]json.RawMessage `json:"chain"`
+		Params   json.RawMessage     `json:"params"`
+		Go       json.RawMessage     `json:"go"`
+		Recorded struct {
+			Params json.RawMessage `json:"params"`
+			Go     *Go             `json:"go"`
+			Value  json.RawMessage `json:"value"`
+			Error  *Error          `json:"error"`
+		} `json:"recorded"`
 	}
 	if err := json.Unmarshal(data, &extra); err != nil {
 		return c, err
 	}
-	c.Value = extra.Value
-	if g := bytes.TrimSpace(extra.Go); len(g) > 0 && g[0] == '{' {
-		c.Go = &Go{}
-		if err := json.Unmarshal(g, c.Go); err != nil {
-			return c, fmt.Errorf("case %q: go: %w", c.Name, err)
-		}
-	}
-	c.Responses = extra.Responses
 	for _, step := range extra.Chain {
 		if len(step) == 0 {
 			return c, fmt.Errorf("case %q: empty chain step", c.Name)
@@ -205,7 +208,18 @@ func parseCase(data json.RawMessage) (Case, error) {
 		s.Args = step[1:]
 		c.Chain = append(c.Chain, s)
 	}
-	switch p := bytes.TrimSpace(extra.Params); {
+	if p := bytes.TrimSpace(extra.Params); len(p) > 0 && p[0] == '{' {
+		c.ParamsOptions = p
+	}
+	if g := bytes.TrimSpace(extra.Go); len(g) > 0 && g[0] == '{' {
+		c.GoOptions = g
+	}
+
+	rec := extra.Recorded
+	c.Go = rec.Go
+	c.Value = rec.Value
+	c.Error = rec.Error
+	switch p := bytes.TrimSpace(rec.Params); {
 	case len(p) == 0:
 	case p[0] == '[':
 		if err := json.Unmarshal(p, &c.Params); err != nil {

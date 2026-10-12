@@ -75,12 +75,19 @@ collection queries leave out the postfix.
   - `create` adds `attribute_not_exists(pk)` (and sk) to the condition.
   - `patch` and `remove` add `attribute_exists`.
   - `upsert` wraps readOnly attributes that aren't key composites in `if_not_exists`.
-- **Attribute rules:**
-  - **Sets:** deduplicated; an empty set means the attribute is absent.
-  - **Maps:** an empty, optional root map with no default is written as absent.
-  - **Write order:** `default`, then `set` (watchers run after the attributes they watch), then
-    validation.
-  - **Read order:** `get` (watchers last), then `hidden` attributes are removed.
+- **Attribute rules** (recorded in `testdata/vectors/pipeline.json`):
+  - **Write order:** each root attribute is cast and defaulted, then validated (stopping at the
+    first invalid attribute). Setters run after that, watchers last, so a setter's output is never
+    validated. Setters run for every attribute, including missing ones.
+  - **Unknown attributes** are dropped, at the root and inside maps.
+  - **Maps:** nested defaults apply when the map is present. An empty map is written as `{}`.
+  - **Sets:** deduplicated, keeping the first occurrence. A single string or number becomes a
+    one-item set. An empty set fails in the DocumentClient's marshalling, so ElectroDB can't write
+    one.
+  - **Lists:** validation errors carry the item's index.
+  - **Read order:** fields are mapped back to attribute names (unknown fields dropped unless
+    `data: "includeKeys"`), getters run (watchers last), then `hidden` attributes and any not
+    listed in `attributes` are removed. Sets come back as arrays.
 
 ### 1.5 Reads and ownership
 

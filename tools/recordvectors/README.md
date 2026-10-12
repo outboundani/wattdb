@@ -63,7 +63,7 @@ JSON protocol exactly as in production. The transport:
 `chain` is a list of `[method, ...args]` calls starting from the entity or service. A dotted method
 such as `query.byRole` walks properties first. A step with no arguments may name a property instead
 of a method, as in `["scan"]`. If the chain doesn't end in something with `.params()`/`.go()` (for
-example `parse` or `conversions.*`), its return value is recorded as `value`.
+example `parse` or `conversions.*`), its return value is recorded as `recorded.value`.
 
 ### Named callbacks
 
@@ -95,7 +95,8 @@ A `where` expression is `["and", e...]`, `["or", e...]`, `["not", e]`, or
 
 ## Vector format
 
-A vector is its scenario with the results filled in, plus the ElectroDB version:
+A vector is its scenario, unchanged, plus the ElectroDB version and a `recorded` object on each
+case:
 
 ```jsonc
 {
@@ -104,14 +105,16 @@ A vector is its scenario with the results filled in, plus the ElectroDB version:
   "cases": [
     {
       ...case,
-      "params": [{ "target": "PutItem", "request": {...} }],   // or { "error": {...} }
-      "go": {
-        "result": {...},      // what .go() resolved to, or
-        "error": {...},       // what it threw
-        "requests": [{ "target": "Query", "request": {...} }]
-      },
-      "value": {...},         // for chains that return a plain value
-      "error": {...}          // the chain itself threw while being built
+      "recorded": {
+        "params": [{ "target": "PutItem", "request": {...} }],   // or { "error": {...} }
+        "go": {
+          "result": {...},      // what .go() resolved to, or
+          "error": {...},       // what it threw
+          "requests": [{ "target": "Query", "request": {...} }]
+        },
+        "value": {...},         // for chains that return a plain value
+        "error": {...}          // the chain itself threw while being built
+      }
     }
   ]
 }
