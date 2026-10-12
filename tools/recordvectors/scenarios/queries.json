@@ -1,0 +1,1220 @@
+{
+  "description": "Queries and scans: every sort-key operation, compare modes, filters, options, pagination (pages, count), cursors, ownership, clustered/keys_only/include indexes, hydrate, raw/includeKeys data, and table and index scans.",
+  "entities": {
+    "task": {
+      "model": {"entity":"task","version":"1","service":"taskapp"},
+      "attributes": {
+        "projectId": {"type":"string","required":true},
+        "taskId": {"type":"string","required":true},
+        "title": {"type":"string"},
+        "status": {"type":["open","done"],"required":true},
+        "priority": {"type":"number","padding":{"length":5,"char":"0"}},
+        "createdAt": {"type":"string"},
+        "assignee": {"type":"string"},
+        "secret": {"type":"string","hidden":true}
+      },
+      "indexes": {
+        "primary": {
+          "pk": {"field":"pk","composite":["projectId"],"facets":["projectId"]},
+          "sk": {"field":"sk","composite":["taskId"],"facets":["taskId"]}
+        },
+        "byStatus": {
+          "index": "gsi1",
+          "pk": {"field":"gsi1pk","composite":["projectId"],"facets":["projectId"]},
+          "sk": {
+            "field": "gsi1sk",
+            "composite": ["status","priority","createdAt"],
+            "facets": ["status","priority","createdAt"]
+          }
+        },
+        "byAssignee": {
+          "index": "gsi2",
+          "projection": "keys_only",
+          "pk": {"field":"gsi2pk","composite":["assignee"],"facets":["assignee"]},
+          "sk": {"field":"gsi2sk","composite":["taskId"],"facets":["taskId"]}
+        },
+        "byStatusCluster": {
+          "index": "gsi3",
+          "type": "clustered",
+          "pk": {"field":"gsi3pk","composite":["status"],"facets":["status"]},
+          "sk": {"field":"gsi3sk","composite":["projectId","taskId"],"facets":["projectId","taskId"]}
+        },
+        "byTitle": {
+          "index": "gsi4",
+          "projection": ["title"],
+          "pk": {"field":"gsi4pk","composite":["projectId"],"facets":["projectId"]},
+          "sk": {"field":"gsi4sk","composite":["title"],"facets":["title"]}
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "query by pk",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"other"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 3,
+          "ScannedCount": 3
+        }
+      ]
+    },
+    {
+      "name": "query full sk",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1","taskId":"T1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    },
+    {
+      "name": "query partial sk",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2
+        }
+      ]
+    },
+    {
+      "name": "query two of three sk composites",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open","priority":2}]]
+    },
+    {
+      "name": "query all sk composites",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open","priority":2,"createdAt":"2026-01-01"}]]
+    },
+    {
+      "name": "begins",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}],["begins",{"priority":1}]]
+    },
+    {
+      "name": "gt",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}],["gt",{"priority":2}]]
+    },
+    {
+      "name": "gte",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}],["gte",{"priority":2}]]
+    },
+    {
+      "name": "lt",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}],["lt",{"priority":2}]]
+    },
+    {
+      "name": "lte",
+      "entity": "task",
+      "chain": [
+        ["query.byStatus",{"projectId":"P1","status":"open"}],
+        ["lte",{"priority":2,"createdAt":"2026"}]
+      ]
+    },
+    {
+      "name": "between",
+      "entity": "task",
+      "chain": [
+        ["query.byStatus",{"projectId":"P1","status":"open"}],
+        ["between",{"priority":1},{"priority":5}]
+      ]
+    },
+    {
+      "name": "gt on the first sk composite",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1"}],["gt",{"status":"done"}]]
+    },
+    {
+      "name": "is with compare attributes",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open","priority":2}]],
+      "params": {"compare":"attributes"},
+      "go": {"compare":"attributes"}
+    },
+    {
+      "name": "gt with compare attributes",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}],["gt",{"priority":2}]],
+      "params": {"compare":"attributes"},
+      "go": {"compare":"attributes"}
+    },
+    {
+      "name": "gte with compare attributes",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}],["gte",{"priority":2}]],
+      "params": {"compare":"attributes"},
+      "go": {"compare":"attributes"}
+    },
+    {
+      "name": "lt with compare attributes",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}],["lt",{"priority":2}]],
+      "params": {"compare":"attributes"},
+      "go": {"compare":"attributes"}
+    },
+    {
+      "name": "between with compare attributes",
+      "entity": "task",
+      "chain": [
+        ["query.byStatus",{"projectId":"P1","status":"open"}],
+        ["between",{"priority":1},{"priority":5}]
+      ],
+      "params": {"compare":"attributes"},
+      "go": {"compare":"attributes"}
+    },
+    {
+      "name": "where filter",
+      "entity": "task",
+      "chain": [
+        ["query.primary",{"projectId":"P1"}],
+        ["where",{"$fn":"where","args":[["and",["eq","status","open"],["gt","priority",1]]]}]
+      ],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2
+        }
+      ]
+    },
+    {
+      "name": "two where filters",
+      "entity": "task",
+      "chain": [
+        ["query.primary",{"projectId":"P1"}],
+        ["where",{"$fn":"where","args":[["eq","status","open"]]}],
+        ["where",{"$fn":"where","args":[["exists","title"]]}]
+      ]
+    },
+    {
+      "name": "options",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": {"limit":10,"order":"desc","table":"other"},
+      "go": {"limit":10,"order":"desc","table":"other"}
+    },
+    {
+      "name": "attributes",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1","status":"open"}]],
+      "params": {"attributes":["title","priority"]},
+      "go": {"attributes":["title","priority"]},
+      "responses": [
+        {
+          "Items": [
+            {
+              "title": {"S":"Alpha"},
+              "priority": {"N":"2"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    },
+    {
+      "name": "all pages",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": false,
+      "go": {"pages":"all"},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1,
+          "LastEvaluatedKey": {"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t1"}}
+        },
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1,
+          "LastEvaluatedKey": {"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t2"}}
+        },
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T3"},
+              "title": {"S":"Gamma"},
+              "status": {"S":"done"},
+              "priority": {"N":"1"},
+              "createdAt": {"S":"2026-01-03"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t3"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_done#priority_00001#createdat_2026-01-03"},
+              "gsi2pk": {"S":"$taskapp#assignee_"},
+              "gsi2sk": {"S":"$task_1#taskid_t3"},
+              "gsi3pk": {"S":"$taskapp#status_done"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t3$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_gamma"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    },
+    {
+      "name": "two pages",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": false,
+      "go": {"pages":2},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1,
+          "LastEvaluatedKey": {"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t1"}}
+        },
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1,
+          "LastEvaluatedKey": {"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t2"}}
+        }
+      ]
+    },
+    {
+      "name": "count",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1"}]],
+      "params": false,
+      "go": {"count":3},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2,
+          "LastEvaluatedKey": {
+            "pk": {"S":"$taskapp#projectid_p1"},
+            "sk": {"S":"$task_1#taskid_t2"},
+            "gsi1pk": {"S":"$taskapp#projectid_p1"},
+            "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"}
+          }
+        },
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T3"},
+              "title": {"S":"Gamma"},
+              "status": {"S":"done"},
+              "priority": {"N":"1"},
+              "createdAt": {"S":"2026-01-03"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t3"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_done#priority_00001#createdat_2026-01-03"},
+              "gsi2pk": {"S":"$taskapp#assignee_"},
+              "gsi2sk": {"S":"$task_1#taskid_t3"},
+              "gsi3pk": {"S":"$taskapp#status_done"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t3$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_gamma"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T9"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t9"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2,
+          "LastEvaluatedKey": {
+            "pk": {"S":"$taskapp#projectid_p1"},
+            "sk": {"S":"$task_1#taskid_t3"},
+            "gsi1pk": {"S":"$taskapp#projectid_p1"},
+            "gsi1sk": {"S":"$task_1#status_done#priority_00001#createdat_2026-01-03"}
+          }
+        }
+      ]
+    },
+    {
+      "name": "count reached exactly",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": false,
+      "go": {"count":2},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2,
+          "LastEvaluatedKey": {"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t2"}}
+        }
+      ]
+    },
+    {
+      "name": "cursor in",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": {"cursor":"eyJwayI6IiR0YXNrYXBwI3Byb2plY3RpZF9wMSIsInNrIjoiJHRhc2tfMSN0YXNraWRfdDEifQ"},
+      "go": {"cursor":"eyJwayI6IiR0YXNrYXBwI3Byb2plY3RpZF9wMSIsInNrIjoiJHRhc2tfMSN0YXNraWRfdDEifQ"}
+    },
+    {
+      "name": "index cursor is trimmed",
+      "entity": "task",
+      "chain": [["query.byStatus",{"projectId":"P1"}]],
+      "params": {
+        "cursor": "eyJnc2kxcGsiOiIkdGFza2FwcCNwcm9qZWN0aWRfcDEiLCJnc2kxc2siOiIkdGFza18xI3N0YXR1c19vcGVuI3ByaW9yaXR5XzAwMDAyI2NyZWF0ZWRhdF8yMDI2LTAxLTAxIiwicGsiOiIkdGFza2FwcCNwcm9qZWN0aWRfcDEiLCJzayI6IiR0YXNrXzEjdGFza2lkX3QxIiwiZXh0cmEiOiJkcm9wcGVkIn0"
+      },
+      "go": {
+        "cursor": "eyJnc2kxcGsiOiIkdGFza2FwcCNwcm9qZWN0aWRfcDEiLCJnc2kxc2siOiIkdGFza18xI3N0YXR1c19vcGVuI3ByaW9yaXR5XzAwMDAyI2NyZWF0ZWRhdF8yMDI2LTAxLTAxIiwicGsiOiIkdGFza2FwcCNwcm9qZWN0aWRfcDEiLCJzayI6IiR0YXNrXzEjdGFza2lkX3QxIiwiZXh0cmEiOiJkcm9wcGVkIn0"
+      }
+    },
+    {
+      "name": "ignoreOwnership",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": false,
+      "go": {"ignoreOwnership":true},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"other"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2
+        }
+      ]
+    },
+    {
+      "name": "clustered partial",
+      "entity": "task",
+      "chain": [["query.byStatusCluster",{"status":"open"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"other"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2
+        }
+      ]
+    },
+    {
+      "name": "clustered with all composites",
+      "entity": "task",
+      "chain": [["query.byStatusCluster",{"status":"open","projectId":"P1","taskId":"T1"}]]
+    },
+    {
+      "name": "keys_only index",
+      "entity": "task",
+      "chain": [["query.byAssignee",{"assignee":"U1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"}
+            },
+            {
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"}
+            },
+            {
+              "pk": {"S":"nope"},
+              "sk": {"S":"nope"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"x"}
+            }
+          ],
+          "Count": 3,
+          "ScannedCount": 3
+        }
+      ]
+    },
+    {
+      "name": "hydrate",
+      "entity": "task",
+      "chain": [["query.byAssignee",{"assignee":"U1"}]],
+      "params": false,
+      "go": {"hydrate":true},
+      "responses": [
+        {
+          "Items": [
+            {
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"}
+            },
+            {
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2
+        },
+        {
+          "Responses": {
+            "table": [
+              {
+                "projectId": {"S":"P1"},
+                "taskId": {"S":"T2"},
+                "title": {"S":"Beta"},
+                "status": {"S":"open"},
+                "priority": {"N":"5"},
+                "createdAt": {"S":"2026-01-02"},
+                "assignee": {"S":"U1"},
+                "pk": {"S":"$taskapp#projectid_p1"},
+                "sk": {"S":"$task_1#taskid_t2"},
+                "gsi1pk": {"S":"$taskapp#projectid_p1"},
+                "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+                "gsi2pk": {"S":"$taskapp#assignee_u1"},
+                "gsi2sk": {"S":"$task_1#taskid_t2"},
+                "gsi3pk": {"S":"$taskapp#status_open"},
+                "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+                "gsi4pk": {"S":"$taskapp#projectid_p1"},
+                "gsi4sk": {"S":"$task_1#title_beta"},
+                "__edb_e__": {"S":"task"},
+                "__edb_v__": {"S":"1"}
+              }
+            ]
+          },
+          "UnprocessedKeys": {"table":{"Keys":[{"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t1"}}]}}
+        }
+      ]
+    },
+    {
+      "name": "include projection without identifiers",
+      "entity": "task",
+      "chain": [["query.byTitle",{"projectId":"P1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "title": {"S":"Alpha"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    },
+    {
+      "name": "raw",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": false,
+      "go": {"data":"raw"},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1,
+          "LastEvaluatedKey": {"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t1"}}
+        }
+      ]
+    },
+    {
+      "name": "includeKeys",
+      "entity": "task",
+      "chain": [["query.primary",{"projectId":"P1"}]],
+      "params": false,
+      "go": {"data":"includeKeys"},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    },
+    {
+      "name": "scan",
+      "entity": "task",
+      "chain": [["scan"]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T2"},
+              "title": {"S":"Beta"},
+              "status": {"S":"open"},
+              "priority": {"N":"5"},
+              "createdAt": {"S":"2026-01-02"},
+              "assignee": {"S":"U1"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t2"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00005#createdat_2026-01-02"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t2"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t2$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_beta"},
+              "__edb_e__": {"S":"other"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2
+        }
+      ]
+    },
+    {
+      "name": "scan with a filter",
+      "entity": "task",
+      "chain": [["scan"],["where",{"$fn":"where","args":[["eq","status","done"]]}]]
+    },
+    {
+      "name": "scan an index",
+      "entity": "task",
+      "chain": [["scan.byStatus"]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    },
+    {
+      "name": "scan all pages",
+      "entity": "task",
+      "chain": [["scan"]],
+      "params": false,
+      "go": {"pages":"all"},
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T1"},
+              "title": {"S":"Alpha"},
+              "status": {"S":"open"},
+              "priority": {"N":"2"},
+              "createdAt": {"S":"2026-01-01"},
+              "assignee": {"S":"U1"},
+              "secret": {"S":"s"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t1"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_open#priority_00002#createdat_2026-01-01"},
+              "gsi2pk": {"S":"$taskapp#assignee_u1"},
+              "gsi2sk": {"S":"$task_1#taskid_t1"},
+              "gsi3pk": {"S":"$taskapp#status_open"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t1$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_alpha"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1,
+          "LastEvaluatedKey": {"pk":{"S":"$taskapp#projectid_p1"},"sk":{"S":"$task_1#taskid_t1"}}
+        },
+        {
+          "Items": [
+            {
+              "projectId": {"S":"P1"},
+              "taskId": {"S":"T3"},
+              "title": {"S":"Gamma"},
+              "status": {"S":"done"},
+              "priority": {"N":"1"},
+              "createdAt": {"S":"2026-01-03"},
+              "pk": {"S":"$taskapp#projectid_p1"},
+              "sk": {"S":"$task_1#taskid_t3"},
+              "gsi1pk": {"S":"$taskapp#projectid_p1"},
+              "gsi1sk": {"S":"$task_1#status_done#priority_00001#createdat_2026-01-03"},
+              "gsi2pk": {"S":"$taskapp#assignee_"},
+              "gsi2sk": {"S":"$task_1#taskid_t3"},
+              "gsi3pk": {"S":"$taskapp#status_done"},
+              "gsi3sk": {"S":"#projectid_p1#taskid_t3$task_1"},
+              "gsi4pk": {"S":"$taskapp#projectid_p1"},
+              "gsi4sk": {"S":"$task_1#title_gamma"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    },
+    {"name":"query missing a pk composite","entity":"task","chain":[["query.primary",{}]]}
+  ]
+}

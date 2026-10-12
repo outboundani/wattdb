@@ -9,9 +9,11 @@ package runtime
 
 import (
 	"github.com/outboundani/wattdb/integration/db/item"
+	"github.com/outboundani/wattdb/integration/db/task"
 	schema0 "github.com/outboundani/wattdb/integration/schema"
 )
 
 func init() {
 	item.Register(schema0.Item{})
+	task.Register(schema0.Task{})
 }

@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"go/token"
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/outboundani/wattdb/attr"
 )
@@ -339,6 +341,7 @@ func renderEntity(e *entity, dbImport string) ([]byte, error) {
 	w.p("}\n")
 
 	renderClient(&w, e)
+	renderQueries(&w, e)
 	renderDescriptors(&w, e)
 
 	// Conversions.
@@ -735,5 +738,124 @@ func renderDescriptors(w *emitter, e *entity) {
 		}
 		w.p("\t}")
 		w.p("}\n")
+	}
+}
+
+// paramName turns a Go name into a parameter name: ProjectID → projectID.
+func paramName(goName string, used map[string]bool) string {
+	runes := []rune(goName)
+	i := 0
+	for i < len(runes) && unicode.IsUpper(runes[i]) {
+		i++
+	}
+	switch {
+	case i == 0:
+	case i == 1 || i == len(runes):
+		i = min(i, len(runes))
+		for j := 0; j < i; j++ {
+			runes[j] = unicode.ToLower(runes[j])
+		}
+	default:
+		for j := 0; j < i-1; j++ {
+			runes[j] = unicode.ToLower(runes[j])
+		}
+	}
+	name := string(runes)
+	if token.IsKeyword(name) || name == "c" || name == "q" || name == "s" || name == "err" || name == "facets" {
+		name += "_"
+	}
+	for used[name] {
+		name += "_"
+	}
+	used[name] = true
+	return name
+}
+
+// renderQueries writes the query entry points, sort-key steps (decision
+// D29) and scans.
+func renderQueries(w *emitter, e *entity) {
+	E := e.structName()
+	qt := fmt.Sprintf("*wattdb.Query[%s, Partial]", E)
+	w.p("// Scan reads every %s item in the table.", e.Name)
+	w.p("func (c *Client) Scan() *wattdb.Scan[%s, Partial] { return c.t.Scan(\"\") }\n", E)
+	for _, p := range e.Patterns {
+		if p.Composite {
+			w.p("// The %s access pattern is a multi-attribute index; its queries come with collections.\n", p.Name)
+			continue
+		}
+		w.p("// Scan%s reads every %s item in the %s index.", p.GoName, e.Name, p.Name)
+		w.p("func (c *Client) Scan%s() *wattdb.Scan[%s, Partial] { return c.t.Scan(%q) }\n", p.GoName, E, p.Name)
+
+		used := map[string]bool{}
+		var params, encs []string
+		for _, a := range p.PK {
+			n := paramName(a.GoName, used)
+			params = append(params, n+" "+a.goType())
+			encs = append(encs, fmt.Sprintf("\t{\n\t\tav, e := %s(%s)\n\t\terr = errors.Join(err, e)\n\t\tfacets = append(facets, wattdb.Facet{Name: %q, Value: av})\n\t}", encFn(a), n, a.Field))
+		}
+		ret := qt
+		wrap := "%s"
+		if len(p.SK) > 0 {
+			ret = p.GoName + "Query"
+			wrap = ret + "{%s}"
+		}
+		w.p("// %s queries the %s access pattern.", p.GoName, p.Name)
+		w.p("func (c *Client) %s(%s) %s {", p.GoName, strings.Join(params, ", "), ret)
+		w.p("\tvar facets []wattdb.Facet")
+		w.p("\tvar err error")
+		for _, enc := range encs {
+			w.p("%s", enc)
+		}
+		w.p("\treturn "+wrap, fmt.Sprintf("c.t.Query(%q, facets, err)", p.Name))
+		w.p("}\n")
+
+		for i, a := range p.SK {
+			holder := p.GoName + "Query"
+			if i > 0 {
+				holder = p.GoName + "Query" + p.SK[i-1].GoName
+			}
+			if i == 0 {
+				w.p("// %s is a %s query; %s() adds a sort-key condition.", holder, p.Name, a.GoName)
+			} else {
+				w.p("// %s is a %s query with %s fixed; %s() adds a sort-key condition.", holder, p.Name, p.SK[i-1].GoName, a.GoName)
+			}
+			w.p("type %s struct{ %s }\n", holder, qt)
+			step := p.GoName + a.GoName + "Step"
+			w.p("// %s starts a condition on %s.", a.GoName, a.Field)
+			w.p("func (q %s) %s() %s { return %s{q.Query} }\n", holder, a.GoName, step, step)
+			w.p("// %s is a sort-key condition on %s.", step, a.Field)
+			w.p("type %s struct{ q %s }\n", step, qt)
+			t := a.goType()
+			enc := encFn(a)
+			if i < len(p.SK)-1 {
+				next := p.GoName + "Query" + a.GoName
+				w.p("// Eq fixes %s and moves to the next sort-key composite.", a.Field)
+				w.p("func (s %s) Eq(v %s) %s {", step, t, next)
+				w.p("\tav, err := %s(v)", enc)
+				w.p("\treturn %s{s.q.KeyEq(%q, av, err)}", next, a.Field)
+				w.p("}\n")
+			} else {
+				w.p("// Eq fixes %s, completing the sort key.", a.Field)
+				w.p("func (s %s) Eq(v %s) %s {", step, t, qt)
+				w.p("\tav, err := %s(v)", enc)
+				w.p("\treturn s.q.KeyEq(%q, av, err)", a.Field)
+				w.p("}\n")
+			}
+			for _, op := range []struct{ name, key string }{{"Gt", "gt"}, {"Gte", "gte"}, {"Lt", "lt"}, {"Lte", "lte"}} {
+				w.p("func (s %s) %s(v %s) %s {", step, op.name, t, qt)
+				w.p("\tav, err := %s(v)", enc)
+				w.p("\treturn s.q.KeyCompare(%q, %q, av, err)", op.key, a.Field)
+				w.p("}\n")
+			}
+			w.p("func (s %s) Between(lo, hi %s) %s {", step, t, qt)
+			w.p("\ta, err1 := %s(lo)", enc)
+			w.p("\tb, err2 := %s(hi)", enc)
+			w.p("\treturn s.q.KeyBetween(%q, a, b, errors.Join(err1, err2))", a.Field)
+			w.p("}\n")
+			w.p("func (s %s) BeginsWith(v %s) %s {", step, t, qt)
+			w.p("\tav, err := %s(v)", enc)
+			w.p("\treturn s.q.KeyBegins(%q, av, err)", a.Field)
+			w.p("}\n")
+		}
 	}
 }

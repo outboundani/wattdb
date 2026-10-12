@@ -137,6 +137,192 @@ func (c *Client) Upsert(in Input) *wattdb.Upsert[Item, Partial] {
 
 var inputOrder = []string{"orgId", "itemId", "title", "status", "createdAt", "ownerId", "createdBy", "count", "tags", "history", "meta", "blob"}
 
+// Scan reads every item item in the table.
+func (c *Client) Scan() *wattdb.Scan[Item, Partial] { return c.t.Scan("") }
+
+// ScanPrimary reads every item item in the primary index.
+func (c *Client) ScanPrimary() *wattdb.Scan[Item, Partial] { return c.t.Scan("primary") }
+
+// Primary queries the primary access pattern.
+func (c *Client) Primary(orgID string) PrimaryQuery {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(orgID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "orgId", Value: av})
+	}
+	return PrimaryQuery{c.t.Query("primary", facets, err)}
+}
+
+// PrimaryQuery is a primary query; ItemID() adds a sort-key condition.
+type PrimaryQuery struct{ *wattdb.Query[Item, Partial] }
+
+// ItemID starts a condition on itemId.
+func (q PrimaryQuery) ItemID() PrimaryItemIDStep { return PrimaryItemIDStep{q.Query} }
+
+// PrimaryItemIDStep is a sort-key condition on itemId.
+type PrimaryItemIDStep struct{ q *wattdb.Query[Item, Partial] }
+
+// Eq fixes itemId, completing the sort key.
+func (s PrimaryItemIDStep) Eq(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyEq("itemId", av, err)
+}
+
+func (s PrimaryItemIDStep) Gt(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gt", "itemId", av, err)
+}
+
+func (s PrimaryItemIDStep) Gte(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gte", "itemId", av, err)
+}
+
+func (s PrimaryItemIDStep) Lt(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lt", "itemId", av, err)
+}
+
+func (s PrimaryItemIDStep) Lte(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lte", "itemId", av, err)
+}
+
+func (s PrimaryItemIDStep) Between(lo, hi string) *wattdb.Query[Item, Partial] {
+	a, err1 := wire.EncodeString(lo)
+	b, err2 := wire.EncodeString(hi)
+	return s.q.KeyBetween("itemId", a, b, errors.Join(err1, err2))
+}
+
+func (s PrimaryItemIDStep) BeginsWith(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyBegins("itemId", av, err)
+}
+
+// ScanByStatus reads every item item in the byStatus index.
+func (c *Client) ScanByStatus() *wattdb.Scan[Item, Partial] { return c.t.Scan("byStatus") }
+
+// ByStatus queries the byStatus access pattern.
+func (c *Client) ByStatus(orgID string) ByStatusQuery {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(orgID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "orgId", Value: av})
+	}
+	return ByStatusQuery{c.t.Query("byStatus", facets, err)}
+}
+
+// ByStatusQuery is a byStatus query; Status() adds a sort-key condition.
+type ByStatusQuery struct{ *wattdb.Query[Item, Partial] }
+
+// Status starts a condition on status.
+func (q ByStatusQuery) Status() ByStatusStatusStep { return ByStatusStatusStep{q.Query} }
+
+// ByStatusStatusStep is a sort-key condition on status.
+type ByStatusStatusStep struct{ q *wattdb.Query[Item, Partial] }
+
+// Eq fixes status and moves to the next sort-key composite.
+func (s ByStatusStatusStep) Eq(v StatusEnum) ByStatusQueryStatus {
+	av, err := wire.EncodeEnum[StatusEnum](v)
+	return ByStatusQueryStatus{s.q.KeyEq("status", av, err)}
+}
+
+func (s ByStatusStatusStep) Gt(v StatusEnum) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeEnum[StatusEnum](v)
+	return s.q.KeyCompare("gt", "status", av, err)
+}
+
+func (s ByStatusStatusStep) Gte(v StatusEnum) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeEnum[StatusEnum](v)
+	return s.q.KeyCompare("gte", "status", av, err)
+}
+
+func (s ByStatusStatusStep) Lt(v StatusEnum) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeEnum[StatusEnum](v)
+	return s.q.KeyCompare("lt", "status", av, err)
+}
+
+func (s ByStatusStatusStep) Lte(v StatusEnum) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeEnum[StatusEnum](v)
+	return s.q.KeyCompare("lte", "status", av, err)
+}
+
+func (s ByStatusStatusStep) Between(lo, hi StatusEnum) *wattdb.Query[Item, Partial] {
+	a, err1 := wire.EncodeEnum[StatusEnum](lo)
+	b, err2 := wire.EncodeEnum[StatusEnum](hi)
+	return s.q.KeyBetween("status", a, b, errors.Join(err1, err2))
+}
+
+func (s ByStatusStatusStep) BeginsWith(v StatusEnum) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeEnum[StatusEnum](v)
+	return s.q.KeyBegins("status", av, err)
+}
+
+// ByStatusQueryStatus is a byStatus query with Status fixed; CreatedAt() adds a sort-key condition.
+type ByStatusQueryStatus struct{ *wattdb.Query[Item, Partial] }
+
+// CreatedAt starts a condition on createdAt.
+func (q ByStatusQueryStatus) CreatedAt() ByStatusCreatedAtStep { return ByStatusCreatedAtStep{q.Query} }
+
+// ByStatusCreatedAtStep is a sort-key condition on createdAt.
+type ByStatusCreatedAtStep struct{ q *wattdb.Query[Item, Partial] }
+
+// Eq fixes createdAt, completing the sort key.
+func (s ByStatusCreatedAtStep) Eq(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyEq("createdAt", av, err)
+}
+
+func (s ByStatusCreatedAtStep) Gt(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gt", "createdAt", av, err)
+}
+
+func (s ByStatusCreatedAtStep) Gte(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gte", "createdAt", av, err)
+}
+
+func (s ByStatusCreatedAtStep) Lt(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lt", "createdAt", av, err)
+}
+
+func (s ByStatusCreatedAtStep) Lte(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lte", "createdAt", av, err)
+}
+
+func (s ByStatusCreatedAtStep) Between(lo, hi string) *wattdb.Query[Item, Partial] {
+	a, err1 := wire.EncodeString(lo)
+	b, err2 := wire.EncodeString(hi)
+	return s.q.KeyBetween("createdAt", a, b, errors.Join(err1, err2))
+}
+
+func (s ByStatusCreatedAtStep) BeginsWith(v string) *wattdb.Query[Item, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyBegins("createdAt", av, err)
+}
+
+// ScanByOwner reads every item item in the byOwner index.
+func (c *Client) ScanByOwner() *wattdb.Scan[Item, Partial] { return c.t.Scan("byOwner") }
+
+// ByOwner queries the byOwner access pattern.
+func (c *Client) ByOwner(ownerID string) *wattdb.Query[Item, Partial] {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(ownerID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "ownerId", Value: av})
+	}
+	return c.t.Query("byOwner", facets, err)
+}
+
 // Descriptors, for conditions and updates. Map properties also have
 // flattened names (ProfileDisplayName for Profile.DisplayName).
 var (

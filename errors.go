@@ -21,6 +21,8 @@ var (
 	// be built from what was given; the error is an
 	// *IncompleteCompositesError.
 	ErrIncompleteComposites = engine.ErrIncompleteComposites
+	// ErrInvalidCursor is returned for a cursor that can't be decoded.
+	ErrInvalidCursor = engine.ErrInvalidCursor
 )
 
 // ValidationError lists invalid attribute values.

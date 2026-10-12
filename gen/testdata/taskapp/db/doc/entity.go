@@ -264,6 +264,24 @@ func (c *Client) Upsert(in Input) *wattdb.Upsert[Doc, Partial] {
 
 var inputOrder = []string{"docId", "code", "t", "count", "done", "kind", "status", "tags", "scores", "meta", "opts", "steps", "notes", "blob", "summary", "secret"}
 
+// Scan reads every doc item in the table.
+func (c *Client) Scan() *wattdb.Scan[Doc, Partial] { return c.t.Scan("") }
+
+// ScanPrimary reads every doc item in the primary index.
+func (c *Client) ScanPrimary() *wattdb.Scan[Doc, Partial] { return c.t.Scan("primary") }
+
+// Primary queries the primary access pattern.
+func (c *Client) Primary(docID string) *wattdb.Query[Doc, Partial] {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(docID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "docId", Value: av})
+	}
+	return c.t.Query("primary", facets, err)
+}
+
 // Descriptors, for conditions and updates. Map properties also have
 // flattened names (ProfileDisplayName for Profile.DisplayName).
 var (

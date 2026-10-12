@@ -216,6 +216,253 @@ func (c *Client) Upsert(in Input) *wattdb.Upsert[User, Partial] {
 
 var inputOrder = []string{"orgId", "userId", "email", "role", "loginCount", "score", "active", "createdAt", "timeout", "token", "lucky", "links", "profile", "prefs", "balance"}
 
+// Scan reads every user item in the table.
+func (c *Client) Scan() *wattdb.Scan[User, Partial] { return c.t.Scan("") }
+
+// ScanPrimary reads every user item in the primary index.
+func (c *Client) ScanPrimary() *wattdb.Scan[User, Partial] { return c.t.Scan("primary") }
+
+// Primary queries the primary access pattern.
+func (c *Client) Primary(orgID string) PrimaryQuery {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(orgID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "orgId", Value: av})
+	}
+	return PrimaryQuery{c.t.Query("primary", facets, err)}
+}
+
+// PrimaryQuery is a primary query; UserID() adds a sort-key condition.
+type PrimaryQuery struct{ *wattdb.Query[User, Partial] }
+
+// UserID starts a condition on userId.
+func (q PrimaryQuery) UserID() PrimaryUserIDStep { return PrimaryUserIDStep{q.Query} }
+
+// PrimaryUserIDStep is a sort-key condition on userId.
+type PrimaryUserIDStep struct{ q *wattdb.Query[User, Partial] }
+
+// Eq fixes userId, completing the sort key.
+func (s PrimaryUserIDStep) Eq(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyEq("userId", av, err)
+}
+
+func (s PrimaryUserIDStep) Gt(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gt", "userId", av, err)
+}
+
+func (s PrimaryUserIDStep) Gte(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gte", "userId", av, err)
+}
+
+func (s PrimaryUserIDStep) Lt(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lt", "userId", av, err)
+}
+
+func (s PrimaryUserIDStep) Lte(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lte", "userId", av, err)
+}
+
+func (s PrimaryUserIDStep) Between(lo, hi string) *wattdb.Query[User, Partial] {
+	a, err1 := wire.EncodeString(lo)
+	b, err2 := wire.EncodeString(hi)
+	return s.q.KeyBetween("userId", a, b, errors.Join(err1, err2))
+}
+
+func (s PrimaryUserIDStep) BeginsWith(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyBegins("userId", av, err)
+}
+
+// ScanByEmail reads every user item in the byEmail index.
+func (c *Client) ScanByEmail() *wattdb.Scan[User, Partial] { return c.t.Scan("byEmail") }
+
+// ByEmail queries the byEmail access pattern.
+func (c *Client) ByEmail(email string) *wattdb.Query[User, Partial] {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(email)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "email", Value: av})
+	}
+	return c.t.Query("byEmail", facets, err)
+}
+
+// ScanByRole reads every user item in the byRole index.
+func (c *Client) ScanByRole() *wattdb.Scan[User, Partial] { return c.t.Scan("byRole") }
+
+// ByRole queries the byRole access pattern.
+func (c *Client) ByRole(orgID string) ByRoleQuery {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(orgID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "orgId", Value: av})
+	}
+	return ByRoleQuery{c.t.Query("byRole", facets, err)}
+}
+
+// ByRoleQuery is a byRole query; Role() adds a sort-key condition.
+type ByRoleQuery struct{ *wattdb.Query[User, Partial] }
+
+// Role starts a condition on role.
+func (q ByRoleQuery) Role() ByRoleRoleStep { return ByRoleRoleStep{q.Query} }
+
+// ByRoleRoleStep is a sort-key condition on role.
+type ByRoleRoleStep struct{ q *wattdb.Query[User, Partial] }
+
+// Eq fixes role and moves to the next sort-key composite.
+func (s ByRoleRoleStep) Eq(v RoleEnum) ByRoleQueryRole {
+	av, err := wire.EncodeEnum[RoleEnum](v)
+	return ByRoleQueryRole{s.q.KeyEq("role", av, err)}
+}
+
+func (s ByRoleRoleStep) Gt(v RoleEnum) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeEnum[RoleEnum](v)
+	return s.q.KeyCompare("gt", "role", av, err)
+}
+
+func (s ByRoleRoleStep) Gte(v RoleEnum) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeEnum[RoleEnum](v)
+	return s.q.KeyCompare("gte", "role", av, err)
+}
+
+func (s ByRoleRoleStep) Lt(v RoleEnum) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeEnum[RoleEnum](v)
+	return s.q.KeyCompare("lt", "role", av, err)
+}
+
+func (s ByRoleRoleStep) Lte(v RoleEnum) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeEnum[RoleEnum](v)
+	return s.q.KeyCompare("lte", "role", av, err)
+}
+
+func (s ByRoleRoleStep) Between(lo, hi RoleEnum) *wattdb.Query[User, Partial] {
+	a, err1 := wire.EncodeEnum[RoleEnum](lo)
+	b, err2 := wire.EncodeEnum[RoleEnum](hi)
+	return s.q.KeyBetween("role", a, b, errors.Join(err1, err2))
+}
+
+func (s ByRoleRoleStep) BeginsWith(v RoleEnum) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeEnum[RoleEnum](v)
+	return s.q.KeyBegins("role", av, err)
+}
+
+// ByRoleQueryRole is a byRole query with Role fixed; UserID() adds a sort-key condition.
+type ByRoleQueryRole struct{ *wattdb.Query[User, Partial] }
+
+// UserID starts a condition on userId.
+func (q ByRoleQueryRole) UserID() ByRoleUserIDStep { return ByRoleUserIDStep{q.Query} }
+
+// ByRoleUserIDStep is a sort-key condition on userId.
+type ByRoleUserIDStep struct{ q *wattdb.Query[User, Partial] }
+
+// Eq fixes userId, completing the sort key.
+func (s ByRoleUserIDStep) Eq(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyEq("userId", av, err)
+}
+
+func (s ByRoleUserIDStep) Gt(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gt", "userId", av, err)
+}
+
+func (s ByRoleUserIDStep) Gte(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gte", "userId", av, err)
+}
+
+func (s ByRoleUserIDStep) Lt(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lt", "userId", av, err)
+}
+
+func (s ByRoleUserIDStep) Lte(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lte", "userId", av, err)
+}
+
+func (s ByRoleUserIDStep) Between(lo, hi string) *wattdb.Query[User, Partial] {
+	a, err1 := wire.EncodeString(lo)
+	b, err2 := wire.EncodeString(hi)
+	return s.q.KeyBetween("userId", a, b, errors.Join(err1, err2))
+}
+
+func (s ByRoleUserIDStep) BeginsWith(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyBegins("userId", av, err)
+}
+
+// ScanByTeam reads every user item in the byTeam index.
+func (c *Client) ScanByTeam() *wattdb.Scan[User, Partial] { return c.t.Scan("byTeam") }
+
+// ByTeam queries the byTeam access pattern.
+func (c *Client) ByTeam(orgID string) ByTeamQuery {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(orgID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "orgId", Value: av})
+	}
+	return ByTeamQuery{c.t.Query("byTeam", facets, err)}
+}
+
+// ByTeamQuery is a byTeam query; UserID() adds a sort-key condition.
+type ByTeamQuery struct{ *wattdb.Query[User, Partial] }
+
+// UserID starts a condition on userId.
+func (q ByTeamQuery) UserID() ByTeamUserIDStep { return ByTeamUserIDStep{q.Query} }
+
+// ByTeamUserIDStep is a sort-key condition on userId.
+type ByTeamUserIDStep struct{ q *wattdb.Query[User, Partial] }
+
+// Eq fixes userId, completing the sort key.
+func (s ByTeamUserIDStep) Eq(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyEq("userId", av, err)
+}
+
+func (s ByTeamUserIDStep) Gt(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gt", "userId", av, err)
+}
+
+func (s ByTeamUserIDStep) Gte(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("gte", "userId", av, err)
+}
+
+func (s ByTeamUserIDStep) Lt(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lt", "userId", av, err)
+}
+
+func (s ByTeamUserIDStep) Lte(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyCompare("lte", "userId", av, err)
+}
+
+func (s ByTeamUserIDStep) Between(lo, hi string) *wattdb.Query[User, Partial] {
+	a, err1 := wire.EncodeString(lo)
+	b, err2 := wire.EncodeString(hi)
+	return s.q.KeyBetween("userId", a, b, errors.Join(err1, err2))
+}
+
+func (s ByTeamUserIDStep) BeginsWith(v string) *wattdb.Query[User, Partial] {
+	av, err := wire.EncodeString(v)
+	return s.q.KeyBegins("userId", av, err)
+}
+
 // Descriptors, for conditions and updates. Map properties also have
 // flattened names (ProfileDisplayName for Profile.DisplayName).
 var (

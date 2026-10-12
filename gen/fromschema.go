@@ -3,10 +3,12 @@ package gen
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/outboundani/wattdb"
 	"github.com/outboundani/wattdb/attr"
+	"github.com/outboundani/wattdb/index"
 )
 
 // fromSchema builds an entity from a running schema (phase 2).
@@ -36,9 +38,9 @@ func fromSchema(pkg, typeName string, ptr bool, s wattdb.Schema) (*entity, error
 		d := ix.Descriptor()
 		if d.Index == "" {
 			seen := map[string]bool{}
-			names := append([]string{}, d.PK.Composites...)
+			names := keyComposites(d.PK)
 			if d.SK != nil {
-				names = append(names, d.SK.Composites...)
+				names = append(names, keyComposites(*d.SK)...)
 			}
 			for _, n := range names {
 				a, ok := byName[n]
@@ -52,8 +54,57 @@ func fromSchema(pkg, typeName string, ptr bool, s wattdb.Schema) (*entity, error
 		if d.Condition != nil {
 			e.Conditions = append(e.Conditions, condition{AccessPattern: d.AccessPattern, Index: i})
 		}
+		p := pattern{Name: d.AccessPattern, GoName: exportName(d.AccessPattern), HasSK: d.SK != nil, Composite: d.Type == "composite"}
+		for _, n := range keyComposites(d.PK) {
+			if a, ok := byName[n]; ok {
+				p.PK = append(p.PK, a)
+			}
+		}
+		if d.SK != nil {
+			for _, n := range keyComposites(*d.SK) {
+				if a, ok := byName[n]; ok {
+					p.SK = append(p.SK, a)
+				}
+			}
+		}
+		e.Patterns = append(e.Patterns, p)
+	}
+	if err := e.checkPatternNames(); err != nil {
+		return nil, err
 	}
 	return e, nil
+}
+
+var templateVar = regexp.MustCompile(`\$\{([^}]*)\}`)
+
+// keyComposites returns a key's composites (Go names): the composite list,
+// or the template's variables when only a template was given.
+func keyComposites(k index.Key) []string {
+	if k.Composites != nil || k.Template == nil {
+		return k.Composites
+	}
+	var out []string
+	for _, m := range templateVar.FindAllStringSubmatch(*k.Template, -1) {
+		out = append(out, m[1])
+	}
+	return out
+}
+
+// checkPatternNames rejects access patterns whose generated names collide.
+func (e *entity) checkPatternNames() error {
+	reserved := map[string]bool{"Get": true, "Put": true, "Create": true, "Delete": true, "Remove": true,
+		"Update": true, "Patch": true, "Upsert": true, "Scan": true}
+	seen := map[string]string{}
+	for _, p := range e.Patterns {
+		if reserved[p.GoName] {
+			return fmt.Errorf("entity %q: access pattern %q would generate method %s, which the client already has", e.Name, p.Name, p.GoName)
+		}
+		if prev, ok := seen[p.GoName]; ok {
+			return fmt.Errorf("entity %q: access patterns %q and %q both generate %s", e.Name, prev, p.Name, p.GoName)
+		}
+		seen[p.GoName] = p.Name
+	}
+	return nil
 }
 
 func fromDescriptor(d *attr.Descriptor) *attribute {

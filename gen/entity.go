@@ -31,6 +31,16 @@ type entity struct {
 	Key        []*attribute // primary composites, pk first
 	Conditions []condition
 	Plural     string
+	Patterns   []pattern
+}
+
+// pattern is an access pattern, for queries and scans.
+type pattern struct {
+	Name      string // access pattern
+	GoName    string // exported method name
+	PK, SK    []*attribute
+	HasSK     bool
+	Composite bool // multi-attribute (composite) index
 }
 
 type condition struct {

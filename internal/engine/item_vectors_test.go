@@ -102,8 +102,8 @@ func TestPutItemsMatchVectors(t *testing.T) {
 	t.Logf("checked %d put cases", checked)
 }
 
-// TestReadFormattingMatchesVectors checks get/query/scan results: ownership
-// filtering and read formatting of every scripted item.
+// TestReadFormattingMatchesVectors checks get results: ownership filtering
+// and read formatting of the scripted item.
 func TestReadFormattingMatchesVectors(t *testing.T) {
 	checked := 0
 	for _, vc := range vectorCases(t) {
@@ -111,8 +111,8 @@ func TestReadFormattingMatchesVectors(t *testing.T) {
 		if vc.c.Go == nil || vc.c.Go.Result == nil || len(vc.c.Responses) == 0 {
 			continue
 		}
-		if method != "get" && method != "query" && method != "scan" {
-			continue
+		if method != "get" {
+			continue // queries and scans are covered by TestQueriesMatchVectors
 		}
 		t.Run(vc.name, func(t *testing.T) {
 			var opts struct {

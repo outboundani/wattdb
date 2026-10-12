@@ -65,34 +65,59 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// gsiSpec describes one GSI of a test table.
+type gsiSpec struct {
+	name, pk, sk string
+	projection   types.ProjectionType
+	include      []string
+}
+
 // newTable creates a fresh table with the item entity's key layout.
 func newTable(t *testing.T) string {
 	t.Helper()
+	return newTableWith(t, []gsiSpec{
+		{name: "gsi1", pk: "gsi1pk", sk: "gsi1sk"},
+		{name: "gsi2", pk: "gsi2pk", sk: "gsi2sk"},
+	})
+}
+
+// newTableWith creates a fresh table with pk/sk and the given GSIs.
+func newTableWith(t *testing.T, gsis []gsiSpec) string {
+	t.Helper()
 	name := fmt.Sprintf("table%d", tables.Add(1))
-	str := func(n string) types.AttributeDefinition {
-		return types.AttributeDefinition{AttributeName: aws.String(n), AttributeType: types.ScalarAttributeTypeS}
-	}
-	gsi := func(name, pk, sk string) types.GlobalSecondaryIndex {
-		return types.GlobalSecondaryIndex{
-			IndexName: aws.String(name),
-			KeySchema: []types.KeySchemaElement{
-				{AttributeName: aws.String(pk), KeyType: types.KeyTypeHash},
-				{AttributeName: aws.String(sk), KeyType: types.KeyTypeRange},
-			},
-			Projection: &types.Projection{ProjectionType: types.ProjectionTypeAll},
+	defs := map[string]bool{"pk": true, "sk": true}
+	var indexes []types.GlobalSecondaryIndex
+	for _, g := range gsis {
+		defs[g.pk], defs[g.sk] = true, true
+		proj := &types.Projection{ProjectionType: types.ProjectionTypeAll}
+		if g.projection != "" {
+			proj = &types.Projection{ProjectionType: g.projection}
+			if len(g.include) > 0 {
+				proj.NonKeyAttributes = g.include
+			}
 		}
+		indexes = append(indexes, types.GlobalSecondaryIndex{
+			IndexName: aws.String(g.name),
+			KeySchema: []types.KeySchemaElement{
+				{AttributeName: aws.String(g.pk), KeyType: types.KeyTypeHash},
+				{AttributeName: aws.String(g.sk), KeyType: types.KeyTypeRange},
+			},
+			Projection: proj,
+		})
+	}
+	var attrDefs []types.AttributeDefinition
+	for n := range defs {
+		attrDefs = append(attrDefs, types.AttributeDefinition{AttributeName: aws.String(n), AttributeType: types.ScalarAttributeTypeS})
 	}
 	_, err := ddb.CreateTable(context.Background(), &dynamodb.CreateTableInput{
-		TableName:   aws.String(name),
-		BillingMode: types.BillingModePayPerRequest,
-		AttributeDefinitions: []types.AttributeDefinition{
-			str("pk"), str("sk"), str("gsi1pk"), str("gsi1sk"), str("gsi2pk"), str("gsi2sk"),
-		},
+		TableName:            aws.String(name),
+		BillingMode:          types.BillingModePayPerRequest,
+		AttributeDefinitions: attrDefs,
 		KeySchema: []types.KeySchemaElement{
 			{AttributeName: aws.String("pk"), KeyType: types.KeyTypeHash},
 			{AttributeName: aws.String("sk"), KeyType: types.KeyTypeRange},
 		},
-		GlobalSecondaryIndexes: []types.GlobalSecondaryIndex{gsi("gsi1", "gsi1pk", "gsi1sk"), gsi("gsi2", "gsi2pk", "gsi2sk")},
+		GlobalSecondaryIndexes: indexes,
 	})
 	if err != nil {
 		t.Fatal(err)

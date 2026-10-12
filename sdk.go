@@ -23,12 +23,20 @@ type sdkParams struct {
 	returnVals types.ReturnValue
 	returnCCF  types.ReturnValuesOnConditionCheckFailure
 	consistent *bool
+	index      *string
+	keyCond    *string
+	filter     *string
+	limit      *int32
+	forward    *bool
+	startKey   map[string]types.AttributeValue
 }
 
-func toSDK(r *engine.Request) (sdkParams, error) {
+func toSDK(r *engine.Request) (sdkParams, error) { return paramsToSDK(r.Params) }
+
+func paramsToSDK(params map[string]any) (sdkParams, error) {
 	var p sdkParams
 	var err error
-	for k, v := range r.Params {
+	for k, v := range params {
 		switch k {
 		case "TableName":
 			p.table = v.(string)
@@ -52,6 +60,18 @@ func toSDK(r *engine.Request) (sdkParams, error) {
 			p.returnCCF = types.ReturnValuesOnConditionCheckFailure(v.(string))
 		case "ConsistentRead":
 			p.consistent = aws.Bool(v.(bool))
+		case "IndexName":
+			p.index = aws.String(v.(string))
+		case "KeyConditionExpression":
+			p.keyCond = aws.String(v.(string))
+		case "FilterExpression":
+			p.filter = aws.String(v.(string))
+		case "Limit":
+			p.limit = aws.Int32(int32(v.(int)))
+		case "ScanIndexForward":
+			p.forward = aws.Bool(v.(bool))
+		case "ExclusiveStartKey":
+			p.startKey, err = engine.ToAttributeMap(v.(map[string]any))
 		default:
 			return p, fmt.Errorf("wattdb: unexpected request field %s", k)
 		}
@@ -115,4 +135,23 @@ func wrapAWS(err error) error {
 		return fmt.Errorf("%w: %w", ErrConditionFailed, err)
 	}
 	return err
+}
+
+func (p sdkParams) query() *dynamodb.QueryInput {
+	return &dynamodb.QueryInput{
+		TableName: aws.String(p.table), IndexName: p.index, KeyConditionExpression: p.keyCond,
+		FilterExpression: p.filter, ProjectionExpression: p.projection,
+		ExpressionAttributeNames: p.names, ExpressionAttributeValues: p.values,
+		Limit: p.limit, ScanIndexForward: p.forward, ConsistentRead: p.consistent,
+		ExclusiveStartKey: p.startKey,
+	}
+}
+
+func (p sdkParams) scan() *dynamodb.ScanInput {
+	return &dynamodb.ScanInput{
+		TableName: aws.String(p.table), IndexName: p.index,
+		FilterExpression: p.filter, ProjectionExpression: p.projection,
+		ExpressionAttributeNames: p.names, ExpressionAttributeValues: p.values,
+		Limit: p.limit, ConsistentRead: p.consistent, ExclusiveStartKey: p.startKey,
+	}
 }

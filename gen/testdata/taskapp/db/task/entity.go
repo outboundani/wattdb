@@ -205,6 +205,39 @@ func (c *Client) Upsert(in Input) *wattdb.Upsert[Task, Partial] {
 
 var inputOrder = []string{"taskId", "title", "code", "status", "search", "secret", "createdBy", "assignee"}
 
+// Scan reads every task item in the table.
+func (c *Client) Scan() *wattdb.Scan[Task, Partial] { return c.t.Scan("") }
+
+// ScanPrimary reads every task item in the primary index.
+func (c *Client) ScanPrimary() *wattdb.Scan[Task, Partial] { return c.t.Scan("primary") }
+
+// Primary queries the primary access pattern.
+func (c *Client) Primary(taskID string) *wattdb.Query[Task, Partial] {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(taskID)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "taskId", Value: av})
+	}
+	return c.t.Query("primary", facets, err)
+}
+
+// ScanByAssignee reads every task item in the byAssignee index.
+func (c *Client) ScanByAssignee() *wattdb.Scan[Task, Partial] { return c.t.Scan("byAssignee") }
+
+// ByAssignee queries the byAssignee access pattern.
+func (c *Client) ByAssignee(assignee string) *wattdb.Query[Task, Partial] {
+	var facets []wattdb.Facet
+	var err error
+	{
+		av, e := wire.EncodeString(assignee)
+		err = errors.Join(err, e)
+		facets = append(facets, wattdb.Facet{Name: "assignee", Value: av})
+	}
+	return c.t.Query("byAssignee", facets, err)
+}
+
 // Descriptors, for conditions and updates. Map properties also have
 // flattened names (ProfileDisplayName for Profile.DisplayName).
 var (
