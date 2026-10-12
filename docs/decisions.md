@@ -26,6 +26,8 @@ The ElectroDB behavior wattdb must reproduce is specified in [design.md](design.
 | D7 | **No guards against values JS can't represent** (e.g. integers above 2^53 in numeric keys, binary attributes). | It's the developer's choice. We document the edges rather than block them. |
 | D8 | **The test oracle is recorded golden vectors.** A committed Node script runs ElectroDB 3.9.x to record keys, items and params as JSON, and Go tests compare against them. It's re-run when the pin changes. There's no Node in CI. Go integration tests run against DynamoDB Local via testcontainers-go. | Only recorded cases are covered, and the vectors must be re-recorded on pin bumps. |
 | D56 | **Numbers in keys use Go's `strconv.FormatFloat(v, 'f', -1, 64)`,** not a JS `String(n)` clone. Integers and ordinary decimals come out identical to ElectroDB; only fractions below `1e-6` and magnitudes at or above `1e21` differ (Go writes plain decimals, JS writes exponents). A custom codec's `KeyString` can override this per field. | Keys with those extreme numbers won't match JS-written keys. Listed in `docs/compat.md`. |
+| D57 | **The engine keeps numbers as exact decimal text** (DynamoDB `N` strings), not `float64`. Go integers of any size are written exactly; `float64` values are formatted per D56. | JS readers round integers above 2^53, as with D7. |
+| D58 | **Negative zero is written as `"0"`**, matching JS `String(-0)`. | — |
 
 ## Schema and code generation
 
