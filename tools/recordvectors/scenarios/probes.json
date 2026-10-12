@@ -1,0 +1,69 @@
+{
+  "description": "The key-construction probes run during design: isolated and clustered keys, sub-collections, labels, padding, booleans, JS number formatting, an index without an sk, partial and begins queries, and an update.",
+  "table": "table",
+  "entities": {
+    "user": {
+      "model": {"entity":"User","version":"1","service":"TaskApp"},
+      "attributes": {
+        "id": {"type":"string"},
+        "org": {"type":"string","label":"O"},
+        "n": {"type":"number","padding":{"length":5,"char":"0"}},
+        "b": {"type":"boolean"},
+        "status": {"type":["Active","Off"]},
+        "tags": {"type":"set","items":"string"},
+        "nick": {"type":"string","field":"nk"}
+      },
+      "indexes": {
+        "rec": {"pk":{"field":"pk","composite":["org"]},"sk":{"field":"sk","composite":["id"]}},
+        "byN": {
+          "index": "gsi1",
+          "collection": ["c1","c2"],
+          "pk": {"field":"gsi1pk","composite":["org"]},
+          "sk": {"field":"gsi1sk","composite":["n","b"]}
+        },
+        "cl": {
+          "index": "gsi2",
+          "type": "clustered",
+          "collection": "cc",
+          "pk": {"field":"gsi2pk","composite":["status"]},
+          "sk": {"field":"gsi2sk","composite":["id"]}
+        },
+        "nosk": {"index":"gsi3","pk":{"field":"gsi3pk","composite":["id"]}}
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put all attributes",
+      "entity": "user",
+      "chain": [
+        [
+          "put",
+          {"id":"AbC","org":"Acme","n":42,"b":true,"status":"Active","tags":["x"],"nick":"Zed"}
+        ]
+      ]
+    },
+    {
+      "name": "put small float",
+      "entity": "user",
+      "chain": [["put",{"id":"a","org":"o","n":0.000001,"b":false,"status":"Off"}]]
+    },
+    {
+      "name": "put 1e21 (DocumentClient rejects unsafe numbers)",
+      "entity": "user",
+      "chain": [["put",{"id":"a","org":"o","n":1e+21,"b":false,"status":"Off"}]]
+    },
+    {"name":"query partial sk","entity":"user","chain":[["query.byN",{"org":"Acme","n":42}]]},
+    {
+      "name": "query begins",
+      "entity": "user",
+      "chain": [["query.byN",{"org":"Acme"}],["begins",{"n":4}]]
+    },
+    {"name":"query clustered partial","entity":"user","chain":[["query.cl",{"status":"Active"}]]},
+    {
+      "name": "update set enum",
+      "entity": "user",
+      "chain": [["update",{"org":"Acme","id":"AbC"}],["set",{"status":"Off"}]]
+    }
+  ]
+}

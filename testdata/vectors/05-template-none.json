@@ -1,0 +1,157 @@
+{
+  "electrodb": "3.9.3",
+  "description": "Tier 5: a template key with casing none, set add, response updated_new, and a function default.",
+  "entities": {
+    "attempt": {
+      "model": {"entity":"attempt","version":"1","service":"taskapp"},
+      "attributes": {
+        "projectId": {"type":"string","required":true},
+        "taskId": {"type":"string","required":true},
+        "userId": {"type":"string","required":true},
+        "count": {"type":"number"},
+        "sessionIds": {"type":"set","items":"string"},
+        "createdAt": {
+          "type": "string",
+          "required": true,
+          "default": {"$fn":"const","args":["2026-01-02T03:04:05.678Z"]}
+        }
+      },
+      "indexes": {
+        "primary": {
+          "pk": {
+            "field": "pk",
+            "composite": ["projectId","taskId","userId"],
+            "template": "attempt#${projectId}#${taskId}#${userId}",
+            "casing": "none"
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put applies the function default",
+      "entity": "attempt",
+      "chain": [["put",{"projectId":"P-1","taskId":"T-Two","userId":"U-3"}]],
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "projectId": {"S":"P-1"},
+              "taskId": {"S":"T-Two"},
+              "userId": {"S":"U-3"},
+              "createdAt": {"S":"2026-01-02T03:04:05.678Z"},
+              "pk": {"S":"attempt#P-1#T-Two#U-3"},
+              "__edb_e__": {"S":"attempt"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {
+                "projectId": {"S":"P-1"},
+                "taskId": {"S":"T-Two"},
+                "userId": {"S":"U-3"},
+                "createdAt": {"S":"2026-01-02T03:04:05.678Z"}
+              }
+            }
+          }
+        },
+        "requests": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "projectId": {"S":"P-1"},
+                "taskId": {"S":"T-Two"},
+                "userId": {"S":"U-3"},
+                "createdAt": {"S":"2026-01-02T03:04:05.678Z"},
+                "pk": {"S":"attempt#P-1#T-Two#U-3"},
+                "__edb_e__": {"S":"attempt"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "update add returns updated_new",
+      "entity": "attempt",
+      "chain": [
+        ["update",{"projectId":"P-1","taskId":"T-Two","userId":"U-3"}],
+        ["add",{"count":1,"sessionIds":["s1","s1","s2"]}]
+      ],
+      "go": {
+        "result": {
+          "M": {"data":{"M":{"count":{"N":"4"},"sessionIds":{"L":[{"S":"s0"},{"S":"s1"},{"S":"s2"}]}}}}
+        },
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#count": "count",
+                "#sessionIds": "sessionIds",
+                "#projectId": "projectId",
+                "#taskId": "taskId",
+                "#userId": "userId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":count_u0": {"N":"1"},
+                ":sessionIds_u0": {"SS":["s1","s2"]},
+                ":projectId_u0": {"S":"P-1"},
+                ":taskId_u0": {"S":"T-Two"},
+                ":userId_u0": {"S":"U-3"},
+                ":__edb_e___u0": {"S":"attempt"},
+                ":__edb_v___u0": {"S":"1"}
+              },
+              "Key": {"pk":{"S":"attempt#P-1#T-Two#U-3"}},
+              "ReturnValues": "UPDATED_NEW",
+              "TableName": "table",
+              "UpdateExpression": "SET #projectId = :projectId_u0, #taskId = :taskId_u0, #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 ADD #count :count_u0, #sessionIds :sessionIds_u0"
+            }
+          }
+        ]
+      },
+      "responses": [{"Attributes":{"count":{"N":"4"},"sessionIds":{"SS":["s0","s1","s2"]}}}],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ExpressionAttributeNames": {
+              "#count": "count",
+              "#sessionIds": "sessionIds",
+              "#projectId": "projectId",
+              "#taskId": "taskId",
+              "#userId": "userId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {
+              ":count_u0": {"N":"1"},
+              ":sessionIds_u0": {"SS":["s1","s2"]},
+              ":projectId_u0": {"S":"P-1"},
+              ":taskId_u0": {"S":"T-Two"},
+              ":userId_u0": {"S":"U-3"},
+              ":__edb_e___u0": {"S":"attempt"},
+              ":__edb_v___u0": {"S":"1"}
+            },
+            "Key": {"pk":{"S":"attempt#P-1#T-Two#U-3"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #projectId = :projectId_u0, #taskId = :taskId_u0, #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 ADD #count :count_u0, #sessionIds :sessionIds_u0"
+          }
+        }
+      ]
+    }
+  ]
+}

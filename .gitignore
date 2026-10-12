@@ -1,0 +1,5 @@
+# Proprietary fixtures and notes (owner-only). Never commit.
+/private/
+
+# Node dependencies for tools/recordvectors
+node_modules/

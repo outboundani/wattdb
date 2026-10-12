@@ -1,0 +1,89 @@
+# wattdb decisions
+
+These are the decisions the project owner has explicitly made, as they currently stand. Anything not
+listed here is undecided. Where the original pasted spec conflicts with this file, this file wins.
+
+The ElectroDB behavior wattdb must reproduce is specified in [design.md](design.md).
+
+## Context
+
+- **Existing ElectroDB data must keep working.** JS (ElectroDB) and Go (wattdb) services may run
+  **side by side** against the same tables during a port. Each side must be able to read whatever the other
+  writes, and cursors must work across both languages.
+- **ElectroDB compatibility is non-negotiable.** Go idioms apply only to the API surface. Nothing
+  that changes stored data or observable behavior is acceptable.
+
+## Compatibility
+
+| # | Decision | Tradeoff accepted |
+|---|---|---|
+| D1 | **"Compatible" means stored data plus observable behavior** match ElectroDB: the same items, keys, identifiers (`__edb_e__`/`__edb_v__`), query results, ownership filtering and validation outcomes. Request placeholder names (e.g. `:status_u0`) may differ. | Tests compare items and results, not request JSON. |
+| D2 | **The target is pinned to ElectroDB 3.9.x.** | Reproducible. Upgrades are deliberate, and new ElectroDB features arrive only when the pin is bumped. |
+| D3 | **Copy every observable quirk.** Anything that affects stored bytes, what gets written or updated, or what reads return is copied exactly, bugs included. We may diverge only where ElectroDB throws or rejects input, and each such case is listed in `docs/compat.md`. | We ship some odd behaviors on purpose. |
+| D4 | **Full parity** with ElectroDB's v1 model features, not scoped down to any one codebase's usage. Exceptions are listed explicitly (D5, D51). | Longer before the first port. |
+| D5 | **No support for the legacy "beta" model format** (root-level `service`/`entity`/`version`). | Less surface area. Only v1 models are supported. |
+| D6 | **ASCII-only key casing.** Keys use simple ASCII upper/lower casing, not JS Unicode casing. | Non-ASCII composites may produce different keys from JS. That's documented, not guarded. |
+| D7 | **No guards against values JS can't represent** (e.g. integers above 2^53 in numeric keys, binary attributes). | It's the developer's choice. We document the edges rather than block them. |
+| D8 | **The test oracle is recorded golden vectors.** A committed Node script runs ElectroDB 3.9.x to record keys, items and params as JSON, and Go tests compare against them. It's re-run when the pin changes. There's no Node in CI. Go integration tests run against DynamoDB Local via testcontainers-go. | Only recorded cases are covered, and the vectors must be re-recorded on pin bumps. |
+
+## Schema and code generation
+
+| # | Decision | Tradeoff accepted |
+|---|---|---|
+| D9 | **Ent-style schema:** one Go schema type per entity, with methods (`Model()`, `Attributes()`, `Indexes()`). **wattdb generates all entity types.** | Single source of truth; porting ElectroDB models is near-mechanical. |
+| D10 | **Two-phase generation (ent-style).** Phase 1 parses the schema AST and emits entity types into `db/<entity>`. Phase 2 builds and runs the schema package and emits everything else, including `db/runtime`. | Attribute names and types must be literals so phase 1 can read them. |
+| D11 | **Callbacks** (get/set/validate/default/watch, index `condition`) are Go funcs in the schema, either inline closures or named funcs. They're typed: each receives the attribute's own value plus a generated, typed struct of sibling values, and watchers see values already transformed by what they watch. A generated `db/runtime` package registers them at init. Apps add `import _ ".../db/runtime"`, and `New` errors if it's missing. | Full parity and type-safe, with no import cycle. Needs a blank import, enforced at `New`. |
+| D12 | **The Go name is primary:** `attr.String("UserID").Field("userId")`. The stored field defaults to the Go name, and `.Field()` sets the DynamoDB/ElectroDB name. | Ported camelCase attributes need `.Field()`. |
+| D13 | **Attribute builder names mirror ElectroDB:** `.Field() .Required() .Label() .Default()/.DefaultFunc() .Validate()/.ValidateRegexp() .Get() .Set() .Watch()/.WatchAll() .ReadOnly() .Hidden() .Padding() .Codec()`. | Porting is a mechanical translation. |
+| D14 | **The index builder is a flat chain that mirrors the model:** `index.Primary(name)` / `index.GSI(name, indexName)`, plus `.PK/.SK`, `.PKField/.SKField`, `.PKTemplate/.SKTemplate`, `.PKCasing/.SKCasing`, `.PKCast/.SKCast`, `.Collection`, `.Type`, `.Scope`, `.Condition`, `.Projection`. | 1:1 with ElectroDB index objects. |
+| D15 | **Services are typed values in schema code:** `var TaskApp = wattdb.Service("taskapp")`. `Model.Service` accepts only that type. The generator uses it to validate collections (members must share a service). Services have no runtime object. | A typo can't silently change keys. One declaration per service. |
+| D16 | **Optional attributes are pointers** in generated read structs. Required attributes are plain values; one missing on read stays at its zero value, as ElectroDB omits it. | "Missing" and "zero" can't be told apart on required fields. |
+| D17 | **Writes take a generated `Input` struct.** Required attributes without a default are plain values; those with a default, and optional ones, are pointers (nil means "use the default"). | Matches ElectroDB exactly, including writing an explicit `false` over a `true` default. Two structs per entity. |
+| D18 | **Codecs:** Go-sensible defaults with a per-field `.Codec(...)` override. The defaults are: `time.Time` → UTC RFC3339 with a fixed 9-digit fraction; `time.Duration` → nanoseconds (N); UUID-like `[16]byte` → binary (B); sets → `[]T` (deduplicated on write, empty means absent); `attr.Any[T]` → typed via `attributevalue`, with `attr.Any` → plain `any`. Custom codecs implement `Codec[T]` (`Encode`, `Decode`, `KeyString`), and the generator rejects key composites whose codec has no `KeyString`. | Fields shared with JS need overrides (e.g. `codec.JSISO` for `toISOString()` values, a string codec for UUIDs; JS can't model binary). `any[T]` uses reflection. |
+| D19 | **Enums are ent-style:** a generated string type with constants, `Values()` and `IsValid()` in the entity package, e.g. `user.Role`, `user.RoleAdmin`. | Long-ish names, no collisions. |
+| D20 | **Generated structs carry `json` tags with the stored field name,** `omitempty` on optional fields, and a `.JSONName()` override. | API responses keep the shape JS returned. |
+| D21 | **Pluralization** (where plural names are generated, e.g. collection result fields): simple English rules plus `Model{Plural: "..."}`. | Already-plural names need the override. |
+| D22 | **Layout:** schemas in `schema/<service>/*.go`; `go run github.com/outboundani/wattdb/cmd/wattdb generate ./schema` (via `//go:generate`); `wattdb check` validates without writing files. Output: `db/<entity>/`, `db/<entity>v2/` for later versions, `db/<service>/` for collections, and `db/runtime/`. The output root is configurable. | Familiar to ent users. |
+
+## Runtime and API
+
+| # | Decision | Tradeoff accepted |
+|---|---|---|
+| D23 | **Runtime engine split.** The runtime is a full, schema-driven ElectroDB engine: keys, expressions, index maintenance, ownership, callback/watch ordering, collections, cursors, batching, transactions, hooks. Generated code is the typed layer. Runtime size is not a constraint. | Compatibility logic lives in one place and is tested once. |
+| D24 | **One generated package per entity, holding everything:** client, struct, `Input`, `Partial`, `Key`, `Filter`, descriptors, enums and nested map types. Example: `users, err := user.New(cfg, table)`, then `user.Status`, `user.Profile`, `user.ProfileLink`. | Short, collision-free names. Each entity is constructed separately. |
+| D25 | **Shared configuration:** `cfg := wattdb.NewConfig(ddb, wattdb.WithHooks(...), wattdb.WithLogger(...))`, passed to every `New` and to transactions. | One extra object. |
+| D26 | **Tables are bound at runtime only,** per entity at `New` (e.g. names injected by infrastructure tooling); a per-call `.Table(name)` overrides it. Tables never appear in the schema. | Tests must supply tables too. |
+| D27 | **Items are addressed by a generated key struct only:** `users.Get(ctx, user.Key{UserID: id})`. | Fields can't be swapped, and one shape serves single, batch and transaction calls. Wordier for single-composite entities. |
+| D28 | **`Get` on a missing item returns `wattdb.ErrNotFound`.** | Changes only the API shape, not behavior. |
+| D29 | **Sort-key conditions use generated steps, one per sort-key composite:** `users.ByStatus(s).CreatedAt().Between(a, b)`, `.Region(r).CreatedAt().Gte(t)`. | The compiler enforces composite order. More generated types per index. |
+| D30 | **Every execution option is a chain method,** e.g. `.Limit(50).Desc().Cursor(c).Exec(ctx)`. This includes `.Hydrate()`, `.Concurrent(n)`, `.PreserveOrder()` and `.Compare(...)`. | Discoverable, and options can change the result type. Large method sets. |
+| D31 | **Query-like terminals:** `Exec(ctx) ([]T, wattdb.Cursor, error)` respects Pages/Count/Limit; `.All(ctx) iter.Seq2[T, error]` streams items; `.Pages(ctx) iter.Seq2[Page[T], error]` yields pages with their cursors. | Three terminal methods. |
+| D32 | **Cursors are byte-compatible with ElectroDB** (base64url of JSON `LastEvaluatedKey`). `wattdb.Cursor` is a string type. | Unsigned, as in ElectroDB. |
+| D33 | **Mutations:** `Put`/`Create` take an `Input` and return the struct. Otherwise `Exec(ctx)` returns `error`. `.Returning(AllNew\|AllOld)` returns the struct; `.Returning(UpdatedNew\|UpdatedOld)` returns the all-pointer `Partial`. | One extra Partial type per entity. |
+| D34 | **The update builder is a typed chain plus a raw escape hatch:** `Set/Remove/Add/Subtract/Append/Delete/IfNotExists/Composite` on descriptors (nested paths included), and Add/Subtract exist only on number and set descriptors. `.Raw(expr, ...)` mirrors `data()`; raw updates skip validation, as in ElectroDB. | Compile-time safety, never blocked. |
+| D35 | **Upsert takes an `Input` plus the op chain:** `users.Upsert(user.Input{...}).Add(user.LoginCount, 1).Exec(ctx)`. readOnly `if_not_exists` behavior is reproduced, and required fields are checked at Exec. | Required-field coverage isn't checked at compile time. |
+| D36 | **Filters and conditions are typed descriptors** combined with `wattdb.And/Or/Not` (nested paths included), plus `wattdb.Raw(expr, Name(...), Value(...))`. | `user.Email.Gt(5)` fails to compile. Deep maps generate many descriptors. |
+| D37 | **Condition failures:** `ErrConditionFailed` by default. `.ReturnRejected()` gives `(wattdb.Outcome[T], error)` with `Rejected` and `Item`, and `.ReturnRejected(wattdb.WithOld())` also fetches the existing item. | One more result type. |
+| D38 | **Projection and data modes get honest types:** `.Attributes(...)` returns `[]Partial`; `.Raw()` returns the SDK output; `.IncludeKeys()` returns items with their key attributes alongside. | More result types. |
+| D39 | **A `.Params()` terminal** returns the SDK input (a slice for batches) without executing. | — |
+| D40 | **Per-call overrides:** `.Client(ddb)`, `.Table(name)`, and `.Mutate(func(*dynamodb.XInput))`, a typed version of ElectroDB's `params` merge. | `Mutate` can break invariants, as `params` can in JS. |
+| D41 | **Batch operations** chunk exactly like ElectroDB (25 per write, 100 per get). They return unprocessed keys, and an opt-in `.RetryUnprocessed(backoff)` is available. | Retry is an extension beyond ElectroDB. |
+| D42 | **Transactions take op values:** `wattdb.TxWrite(ctx, cfg, users.Update(k).Set(...).TxOp(), cfgs.Delete(k2).TxOp()).Token(id).Exec()`. Reads use typed handles: `wattdb.TxGet(ctx, cfg, users.Get(k).TxGet(&ak), ...)`. | Results are indexed back into the result slice. |
+| D43 | **Collections:** generated in `db/<service>` with one client per collection, e.g. `taskapp.NewAssignments(cfg, table).Query(taskapp.AssignmentsKey{...}).Exec(ctx)`. They return a typed struct with one slice per entity plus a cursor. | The interleaved order across entities is lost, as in ElectroDB. |
+| D44 | **`Find` and `Match`** take the generated all-pointer `Filter` struct, and the runtime reproduces ElectroDB's index ranking. | The chosen index isn't visible at compile time. |
+| D45 | **Conversions are typed generated methods:** `users.Conv().KeysFromComposite(...)`, `.CursorFromKeys(...)`, `.CompositeFromCursor(...)`, plus per-access-pattern variants and `strict` modes. | Large surface for a rarely used feature. |
+| D46 | **`Parse` takes `map[string]types.AttributeValue`** (SDK v2) and ignores ownership by default, as ElectroDB does. There's no aws-lambda-go dependency. | Lambda users convert stream types themselves. |
+| D47 | **Schema versions get a package each:** `db/user` (v1), `db/userv2` (v2). The newer package gets a generated `MigrateFrom(ctx, old, new, transform)`. | Imports change when a version is bumped. |
+| D48 | **Errors are idiomatic Go, without ElectroDB's numeric codes:** `ErrNotFound`, `ErrConditionFailed`, `ErrValidation` + `*ValidationError{Fields []FieldError{Path, Reason, Index, Cause}}`, `ErrIncompleteComposites`, `ErrTransactionCanceled` + `*TxCanceledError{Items []TxItemResult{Rejected, Code, Message, Item}}`, `ErrInvalidCursor`. AWS errors are wrapped with `%w`. | Error codes don't line up with JS logs. |
+| D49 | **Builder errors are recorded on the builder and returned from `Exec`** before any request is sent. Builders never panic. | The error surfaces at Exec, not at the line that caused it. |
+| D50 | **Hooks are middleware-style:** `func(ctx, Call, next func(ctx) (any, error)) (any, error)` around every request, with a ready-made slog adapter. | More power than ElectroDB events, so misuse is possible. |
+| D51 | **Compare modes:** `keys` (the default) and `.Compare(wattdb.CompareAttributes)`. ElectroDB's deprecated `v2` mode is not supported. | A deliberate, documented gap in full parity. |
+
+## Test oracle
+
+| # | Decision | Tradeoff accepted |
+|---|---|---|
+| D52 | **Vector scenarios are JSON with named callbacks.** Callbacks appear as `{"$fn": "<name>"}` and resolve through a registry that exists in both the recorder (JS) and the Go test harness. Each vector file embeds its model, so Go tests build the model from the vector itself. | Only registered callbacks can be recorded; a new one is added on both sides. |
+| D53 | **Vectors use wire `AttributeValue` JSON:** params and items as the v3 DocumentClient marshals them with default options (`{"S":…}`, `{"N":"1e+21"}`, `{"SS":[…]}`). | Verbose, but numbers keep their JS string form and types are unambiguous. |
+| D54 | **The recorder drives ElectroDB through a fake v3 client** whose `send()` logs every request and returns responses scripted in the scenario. It captures params, items, read formatting, pagination, cursors, hydrate and batching with one mechanism. | More recorder work up front. |
+| D55 | **The recorder uses pnpm with a committed lockfile** and exact pins (`electrodb@3.9.3` plus the AWS SDK packages). | Re-recording needs pnpm installed. |

@@ -1,0 +1,551 @@
+{
+  "electrodb": "3.9.3",
+  "description": "Tier 9: deeply nested maps, an any attribute, and heavy update usage (set, remove, add, subtract, append, delete, data, patch, upsert).",
+  "entities": {
+    "settings": {
+      "model": {"entity":"settings","version":"1","service":"taskapp"},
+      "attributes": {
+        "userId": {"type":"string","required":true},
+        "prefs": {
+          "type": "map",
+          "properties": {
+            "notifications": {
+              "type": "map",
+              "properties": {
+                "email": {
+                  "type": "map",
+                  "properties": {"enabled":{"type":"boolean"},"frequency":{"type":["instant","daily","weekly"]}}
+                },
+                "push": {"type":"map","properties":{"enabled":{"type":"boolean"}}}
+              }
+            },
+            "theme": {"type":"string"}
+          }
+        },
+        "visits": {"type":"number"},
+        "recent": {"type":"list","items":{"type":"string"}},
+        "flags": {"type":"set","items":"string"},
+        "meta": {"type":"any"}
+      },
+      "indexes": {"primary":{"pk":{"field":"pk","composite":["userId"]},"sk":{"field":"sk","composite":[]}}}
+    }
+  },
+  "cases": [
+    {
+      "name": "put deep map",
+      "entity": "settings",
+      "chain": [
+        [
+          "put",
+          {
+            "userId": "U-1",
+            "prefs": {"notifications":{"email":{"enabled":true,"frequency":"daily"}},"theme":"dark"},
+            "meta": {"x":[1,{"y":2}]}
+          }
+        ]
+      ],
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "userId": {"S":"U-1"},
+              "prefs": {
+                "M": {
+                  "notifications": {"M":{"email":{"M":{"enabled":{"BOOL":true},"frequency":{"S":"daily"}}}}},
+                  "theme": {"S":"dark"}
+                }
+              },
+              "meta": {"M":{"x":{"L":[{"N":"1"},{"M":{"y":{"N":"2"}}}]}}},
+              "pk": {"S":"$taskapp#userid_u-1"},
+              "sk": {"S":"$settings_1"},
+              "__edb_e__": {"S":"settings"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {
+                "userId": {"S":"U-1"},
+                "prefs": {
+                  "M": {
+                    "notifications": {"M":{"email":{"M":{"enabled":{"BOOL":true},"frequency":{"S":"daily"}}}}},
+                    "theme": {"S":"dark"}
+                  }
+                },
+                "meta": {"M":{"x":{"L":[{"N":"1"},{"M":{"y":{"N":"2"}}}]}}}
+              }
+            }
+          }
+        },
+        "requests": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "userId": {"S":"U-1"},
+                "prefs": {
+                  "M": {
+                    "notifications": {"M":{"email":{"M":{"enabled":{"BOOL":true},"frequency":{"S":"daily"}}}}},
+                    "theme": {"S":"dark"}
+                  }
+                },
+                "meta": {"M":{"x":{"L":[{"N":"1"},{"M":{"y":{"N":"2"}}}]}}},
+                "pk": {"S":"$taskapp#userid_u-1"},
+                "sk": {"S":"$settings_1"},
+                "__edb_e__": {"S":"settings"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "update with every operation",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        ["set",{"prefs":{"theme":"light"}}],
+        ["remove",["meta"]],
+        ["add",{"visits":1,"flags":["beta"]}],
+        ["append",{"recent":["t-9"]}],
+        ["delete",{"flags":["old"]}]
+      ],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ExpressionAttributeNames": {
+              "#prefs": "prefs",
+              "#meta": "meta",
+              "#visits": "visits",
+              "#flags": "flags",
+              "#recent": "recent",
+              "#userId": "userId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {
+              ":prefs_u0": {"M":{"theme":{"S":"light"}}},
+              ":visits_u0": {"N":"1"},
+              ":flags_u0": {"L":[{"S":"beta"}]},
+              ":recent_u0": {"L":[{"S":"t-9"}]},
+              ":recent_default_value_u0": {"L":[]},
+              ":flags_u1": {"SS":["old"]},
+              ":userId_u0": {"S":"U-1"},
+              ":__edb_e___u0": {"S":"settings"},
+              ":__edb_v___u0": {"S":"1"}
+            },
+            "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #prefs = :prefs_u0, #recent = list_append(if_not_exists(#recent, :recent_default_value_u0), :recent_u0), #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 REMOVE #meta ADD #visits :visits_u0, #flags :flags_u0 DELETE #flags :flags_u1"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"userId":{"S":"U-1"}}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#prefs": "prefs",
+                "#meta": "meta",
+                "#visits": "visits",
+                "#flags": "flags",
+                "#recent": "recent",
+                "#userId": "userId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":prefs_u0": {"M":{"theme":{"S":"light"}}},
+                ":visits_u0": {"N":"1"},
+                ":flags_u0": {"L":[{"S":"beta"}]},
+                ":recent_u0": {"L":[{"S":"t-9"}]},
+                ":recent_default_value_u0": {"L":[]},
+                ":flags_u1": {"SS":["old"]},
+                ":userId_u0": {"S":"U-1"},
+                ":__edb_e___u0": {"S":"settings"},
+                ":__edb_v___u0": {"S":"1"}
+              },
+              "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #prefs = :prefs_u0, #recent = list_append(if_not_exists(#recent, :recent_default_value_u0), :recent_u0), #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 REMOVE #meta ADD #visits :visits_u0, #flags :flags_u0 DELETE #flags :flags_u1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "update subtract",
+      "entity": "settings",
+      "chain": [["update",{"userId":"U-1"}],["subtract",{"visits":2}]],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ExpressionAttributeNames": {
+              "#visits": "visits",
+              "#userId": "userId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {
+              ":visits_u0": {"N":"2"},
+              ":visits_default_value_u0": {"N":"0"},
+              ":userId_u0": {"S":"U-1"},
+              ":__edb_e___u0": {"S":"settings"},
+              ":__edb_v___u0": {"S":"1"}
+            },
+            "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #visits = (if_not_exists(#visits, :visits_default_value_u0) - :visits_u0), #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"userId":{"S":"U-1"}}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#visits": "visits",
+                "#userId": "userId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":visits_u0": {"N":"2"},
+                ":visits_default_value_u0": {"N":"0"},
+                ":userId_u0": {"S":"U-1"},
+                ":__edb_e___u0": {"S":"settings"},
+                ":__edb_v___u0": {"S":"1"}
+              },
+              "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #visits = (if_not_exists(#visits, :visits_default_value_u0) - :visits_u0), #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "update nested paths with data",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        [
+          "data",
+          {
+            "$fn": "data",
+            "args": [
+              ["set","prefs.notifications.email.frequency","weekly"],
+              ["remove","prefs.notifications.push"],
+              ["ifNotExists","visits",0],
+              ["append","recent",["t-10"]]
+            ]
+          }
+        ]
+      ],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ExpressionAttributeNames": {
+              "#prefs": "prefs",
+              "#notifications": "notifications",
+              "#email": "email",
+              "#frequency": "frequency",
+              "#push": "push",
+              "#visits": "visits",
+              "#recent": "recent",
+              "#userId": "userId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {
+              ":frequency_u0": {"S":"weekly"},
+              ":visits_u0": {"N":"0"},
+              ":recent_u0": {"L":[{"S":"t-10"}]},
+              ":recent_default_value_u0": {"L":[]},
+              ":userId_u0": {"S":"U-1"},
+              ":__edb_e___u0": {"S":"settings"},
+              ":__edb_v___u0": {"S":"1"}
+            },
+            "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #prefs.#notifications.#email.#frequency = :frequency_u0, #visits = if_not_exists(#visits, :visits_u0), #recent = list_append(if_not_exists(#recent, :recent_default_value_u0), :recent_u0), #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 REMOVE #prefs.#notifications.#push"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"userId":{"S":"U-1"}}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#prefs": "prefs",
+                "#notifications": "notifications",
+                "#email": "email",
+                "#frequency": "frequency",
+                "#push": "push",
+                "#visits": "visits",
+                "#recent": "recent",
+                "#userId": "userId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":frequency_u0": {"S":"weekly"},
+                ":visits_u0": {"N":"0"},
+                ":recent_u0": {"L":[{"S":"t-10"}]},
+                ":recent_default_value_u0": {"L":[]},
+                ":userId_u0": {"S":"U-1"},
+                ":__edb_e___u0": {"S":"settings"},
+                ":__edb_v___u0": {"S":"1"}
+              },
+              "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #prefs.#notifications.#email.#frequency = :frequency_u0, #visits = if_not_exists(#visits, :visits_u0), #recent = list_append(if_not_exists(#recent, :recent_default_value_u0), :recent_u0), #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 REMOVE #prefs.#notifications.#push"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "update with a where condition",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        ["set",{"visits":0}],
+        ["where",{"$fn":"where","args":[["and",["gt","visits",100],["eq","prefs.theme","dark"]]]}]
+      ],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ConditionExpression": "(#visits > :visits0) AND (#prefs.#theme = :theme0)",
+            "ExpressionAttributeNames": {
+              "#visits": "visits",
+              "#prefs": "prefs",
+              "#theme": "theme",
+              "#userId": "userId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {
+              ":visits0": {"N":"100"},
+              ":theme0": {"S":"dark"},
+              ":visits_u0": {"N":"0"},
+              ":userId_u0": {"S":"U-1"},
+              ":__edb_e___u0": {"S":"settings"},
+              ":__edb_v___u0": {"S":"1"}
+            },
+            "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #visits = :visits_u0, #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"userId":{"S":"U-1"}}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ConditionExpression": "(#visits > :visits0) AND (#prefs.#theme = :theme0)",
+              "ExpressionAttributeNames": {
+                "#visits": "visits",
+                "#prefs": "prefs",
+                "#theme": "theme",
+                "#userId": "userId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":visits0": {"N":"100"},
+                ":theme0": {"S":"dark"},
+                ":visits_u0": {"N":"0"},
+                ":userId_u0": {"S":"U-1"},
+                ":__edb_e___u0": {"S":"settings"},
+                ":__edb_v___u0": {"S":"1"}
+              },
+              "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #visits = :visits_u0, #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "update with an invalid nested enum",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        ["set",{"prefs":{"notifications":{"email":{"frequency":"hourly"}}}}]
+      ],
+      "params": {
+        "error": {
+          "name": "ElectroValidationError",
+          "message": "Invalid value type at entity path: \"prefs.notifications.email.frequency\". Value not found in set of acceptable values: \"instant\", \"daily\", \"weekly\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001,
+          "fields": [
+            {
+              "field": "prefs.notifications.email.frequency",
+              "reason": "Invalid value type at entity path: \"prefs.notifications.email.frequency\". Value not found in set of acceptable values: \"instant\", \"daily\", \"weekly\"",
+              "cause": {
+                "name": "ElectroError",
+                "message": "Invalid value type at entity path: \"prefs.notifications.email.frequency\". Value not found in set of acceptable values: \"instant\", \"daily\", \"weekly\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                "code": 3001
+              }
+            }
+          ]
+        }
+      },
+      "go": {
+        "error": {
+          "name": "ElectroValidationError",
+          "message": "Invalid value type at entity path: \"prefs.notifications.email.frequency\". Value not found in set of acceptable values: \"instant\", \"daily\", \"weekly\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001,
+          "fields": [
+            {
+              "field": "prefs.notifications.email.frequency",
+              "reason": "Invalid value type at entity path: \"prefs.notifications.email.frequency\". Value not found in set of acceptable values: \"instant\", \"daily\", \"weekly\"",
+              "cause": {
+                "name": "ElectroError",
+                "message": "Invalid value type at entity path: \"prefs.notifications.email.frequency\". Value not found in set of acceptable values: \"instant\", \"daily\", \"weekly\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                "code": 3001
+              }
+            }
+          ]
+        },
+        "requests": []
+      }
+    },
+    {
+      "name": "patch",
+      "entity": "settings",
+      "chain": [["patch",{"userId":"U-1"}],["set",{"visits":5}]],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ConditionExpression": "attribute_exists(#pk) AND attribute_exists(#sk)",
+            "ExpressionAttributeNames": {
+              "#pk": "pk",
+              "#sk": "sk",
+              "#visits": "visits",
+              "#userId": "userId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {
+              ":visits_u0": {"N":"5"},
+              ":userId_u0": {"S":"U-1"},
+              ":__edb_e___u0": {"S":"settings"},
+              ":__edb_v___u0": {"S":"1"}
+            },
+            "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #visits = :visits_u0, #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"userId":{"S":"U-1"}}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ConditionExpression": "attribute_exists(#pk) AND attribute_exists(#sk)",
+              "ExpressionAttributeNames": {
+                "#pk": "pk",
+                "#sk": "sk",
+                "#visits": "visits",
+                "#userId": "userId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":visits_u0": {"N":"5"},
+                ":userId_u0": {"S":"U-1"},
+                ":__edb_e___u0": {"S":"settings"},
+                ":__edb_v___u0": {"S":"1"}
+              },
+              "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #visits = :visits_u0, #userId = :userId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "upsert",
+      "entity": "settings",
+      "chain": [["upsert",{"userId":"U-1","prefs":{"theme":"dark"}}],["add",{"visits":1}]],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ExpressionAttributeNames": {
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__",
+              "#userId": "userId",
+              "#prefs": "prefs",
+              "#visits": "visits"
+            },
+            "ExpressionAttributeValues": {
+              ":__edb_e___u0": {"S":"settings"},
+              ":__edb_v___u0": {"S":"1"},
+              ":userId_u0": {"S":"U-1"},
+              ":prefs_u0": {"M":{"theme":{"S":"dark"}}},
+              ":visits_u0": {"N":"1"}
+            },
+            "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0, #userId = :userId_u0, #prefs = :prefs_u0 ADD #visits :visits_u0"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__",
+                "#userId": "userId",
+                "#prefs": "prefs",
+                "#visits": "visits"
+              },
+              "ExpressionAttributeValues": {
+                ":__edb_e___u0": {"S":"settings"},
+                ":__edb_v___u0": {"S":"1"},
+                ":userId_u0": {"S":"U-1"},
+                ":prefs_u0": {"M":{"theme":{"S":"dark"}}},
+                ":visits_u0": {"N":"1"}
+              },
+              "Key": {"pk":{"S":"$taskapp#userid_u-1"},"sk":{"S":"$settings_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0, #userId = :userId_u0, #prefs = :prefs_u0 ADD #visits :visits_u0"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

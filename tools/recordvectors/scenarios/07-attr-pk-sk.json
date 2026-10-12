@@ -1,0 +1,58 @@
+{
+  "description": "Tier 7: attributes as both pk and (numeric) sk fields, a list of maps, and a true default on a required boolean.",
+  "entities": {
+    "event": {
+      "model": {"entity":"event","version":"1","service":"taskapp"},
+      "attributes": {
+        "taskId": {"type":"string","required":true},
+        "seq": {"type":"number","required":true},
+        "changes": {
+          "type": "list",
+          "items": {
+            "type": "map",
+            "properties": {
+              "field": {"type":"string","required":true},
+              "from": {"type":"string"},
+              "to": {"type":"string"}
+            }
+          }
+        },
+        "visible": {"type":"boolean","required":true,"default":true}
+      },
+      "indexes": {
+        "primary": {"pk":{"field":"taskId","composite":["taskId"]},"sk":{"field":"seq","composite":["seq"]}}
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put uses the boolean default",
+      "entity": "event",
+      "chain": [
+        [
+          "put",
+          {
+            "taskId": "T-1",
+            "seq": 1,
+            "changes": [{"field":"status","from":"open","to":"done"},{"field":"title"}]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "put with explicit false",
+      "entity": "event",
+      "chain": [["put",{"taskId":"T-1","seq":2,"visible":false}]]
+    },
+    {
+      "name": "query sk gte",
+      "entity": "event",
+      "chain": [["query.primary",{"taskId":"T-1"}],["gte",{"seq":2}]]
+    },
+    {
+      "name": "query sk between",
+      "entity": "event",
+      "chain": [["query.primary",{"taskId":"T-1"}],["between",{"seq":2},{"seq":10}]]
+    }
+  ]
+}

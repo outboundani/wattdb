@@ -1,0 +1,344 @@
+{
+  "electrodb": "3.9.3",
+  "description": "JS Number formatting in keys and stored values: fractions, exponents, negatives and the safe-integer edge.",
+  "entities": {
+    "metric": {
+      "model": {"entity":"metric","version":"1","service":"taskapp"},
+      "attributes": {"name":{"type":"string","required":true},"value":{"type":"number","required":true}},
+      "indexes": {
+        "primary": {"pk":{"field":"pk","composite":["name"]},"sk":{"field":"sk","composite":["value"]}}
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "integer",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":42}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"42"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_42"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "zero",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":0}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"0"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_0"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "negative",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":-17.25}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"-17.25"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_-17.25"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "fraction",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":123.456}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"123.456"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_123.456"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "float rounding",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":0.30000000000000004}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"0.30000000000000004"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_0.30000000000000004"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1e-6 stays decimal",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":0.000001}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"0.000001"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_0.000001"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "1e-7 is exponent",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":1e-7}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"1e-7"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_1e-7"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "small exponent",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":1.5e-10}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"1.5e-10"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_1.5e-10"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "smallest denormal",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":5e-324}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"5e-324"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_5e-324"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "max safe integer",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":9007199254740991}]],
+      "go": false,
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "name": {"S":"m"},
+              "value": {"N":"9007199254740991"},
+              "pk": {"S":"$taskapp#name_m"},
+              "sk": {"S":"$metric_1#value_9007199254740991"},
+              "__edb_e__": {"S":"metric"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "above max safe integer (DocumentClient rejects unsafe numbers)",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":9007199254740992}]],
+      "go": false,
+      "params": {
+        "error": {
+          "name": "Error",
+          "message": "Number 9007199254740992 is greater than Number.MAX_SAFE_INTEGER. Use BigInt. "
+        }
+      }
+    },
+    {
+      "name": "1e20 (DocumentClient rejects unsafe numbers)",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":100000000000000000000}]],
+      "go": false,
+      "params": {
+        "error": {
+          "name": "Error",
+          "message": "Number 100000000000000000000 is greater than Number.MAX_SAFE_INTEGER. Use BigInt. "
+        }
+      }
+    },
+    {
+      "name": "query with fraction",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":0.5}]],
+      "go": false,
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#name_m"},":sk1":{"S":"$metric_1#value_0.5"}},
+            "KeyConditionExpression": "#pk = :pk and #sk1 >= :sk1",
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "query key with 1e20",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":100000000000000000000}]],
+      "go": false,
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#name_m"},":sk1":{"S":"$metric_1#value_100000000000000000000"}},
+            "KeyConditionExpression": "#pk = :pk and #sk1 >= :sk1",
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "query key with 1e21",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":1e+21}]],
+      "go": false,
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#name_m"},":sk1":{"S":"$metric_1#value_1e+21"}},
+            "KeyConditionExpression": "#pk = :pk and #sk1 >= :sk1",
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "query key with 2^53",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":9007199254740992}]],
+      "go": false,
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#name_m"},":sk1":{"S":"$metric_1#value_9007199254740992"}},
+            "KeyConditionExpression": "#pk = :pk and #sk1 >= :sk1",
+            "TableName": "table"
+          }
+        }
+      ]
+    },
+    {
+      "name": "query key with 1e-7",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":1e-7}]],
+      "go": false,
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+            "ExpressionAttributeValues": {":pk":{"S":"$taskapp#name_m"},":sk1":{"S":"$metric_1#value_1e-7"}},
+            "KeyConditionExpression": "#pk = :pk and #sk1 >= :sk1",
+            "TableName": "table"
+          }
+        }
+      ]
+    }
+  ]
+}

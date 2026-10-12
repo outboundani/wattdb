@@ -1,0 +1,387 @@
+{
+  "electrodb": "3.9.3",
+  "description": "Attribute callbacks through the named registry: get/set transforms, watch, validate (function and regexp), hidden, readOnly, and a sparse index condition.",
+  "entities": {
+    "task": {
+      "model": {"entity":"task","version":"1","service":"taskapp"},
+      "attributes": {
+        "taskId": {"type":"string","required":true},
+        "title": {"type":"string","required":true,"validate":{"$fn":"minLength","args":[3]}},
+        "code": {"type":"string","validate":{"$fn":"regexp","args":["^[A-Z]{2}-\\d+$"]}},
+        "status": {"type":"string","set":{"$fn":"lower"},"get":{"$fn":"upper"}},
+        "search": {
+          "type": "string",
+          "watch": ["title","status"],
+          "set": {"$fn":"join","args":["|","title","status"]}
+        },
+        "secret": {"type":"string","hidden":true},
+        "createdBy": {"type":"string","readOnly":true},
+        "assignee": {"type":"string"}
+      },
+      "indexes": {
+        "primary": {"pk":{"field":"pk","composite":["taskId"]},"sk":{"field":"sk","composite":[]}},
+        "byAssignee": {
+          "index": "gsi1",
+          "condition": {"$fn":"has","args":["assignee"]},
+          "pk": {"field":"gsi1pk","composite":["assignee"]},
+          "sk": {"field":"gsi1sk","composite":[]}
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put runs set and watchers, skips the sparse index",
+      "entity": "task",
+      "chain": [
+        [
+          "put",
+          {
+            "taskId": "T-1",
+            "title": "Write docs",
+            "code": "AB-12",
+            "status": "OPEN",
+            "secret": "s",
+            "createdBy": "u-1"
+          }
+        ]
+      ],
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "taskId": {"S":"T-1"},
+              "title": {"S":"Write docs"},
+              "code": {"S":"AB-12"},
+              "status": {"S":"open"},
+              "search": {"S":"Write docs|open"},
+              "secret": {"S":"s"},
+              "createdBy": {"S":"u-1"},
+              "pk": {"S":"$taskapp#taskid_t-1"},
+              "sk": {"S":"$task_1"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {
+                "taskId": {"S":"T-1"},
+                "title": {"S":"Write docs"},
+                "code": {"S":"AB-12"},
+                "status": {"S":"OPEN"},
+                "search": {"S":"Write docs|open"},
+                "createdBy": {"S":"u-1"}
+              }
+            }
+          }
+        },
+        "requests": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "taskId": {"S":"T-1"},
+                "title": {"S":"Write docs"},
+                "code": {"S":"AB-12"},
+                "status": {"S":"open"},
+                "search": {"S":"Write docs|open"},
+                "secret": {"S":"s"},
+                "createdBy": {"S":"u-1"},
+                "pk": {"S":"$taskapp#taskid_t-1"},
+                "sk": {"S":"$task_1"},
+                "__edb_e__": {"S":"task"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "put writes the sparse index when its condition holds",
+      "entity": "task",
+      "chain": [["put",{"taskId":"T-2","title":"Ship","assignee":"U-9"}]],
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "taskId": {"S":"T-2"},
+              "title": {"S":"Ship"},
+              "search": {"S":"Ship|"},
+              "assignee": {"S":"U-9"},
+              "pk": {"S":"$taskapp#taskid_t-2"},
+              "sk": {"S":"$task_1"},
+              "gsi1pk": {"S":"$taskapp#assignee_u-9"},
+              "gsi1sk": {"S":"$task_1"},
+              "__edb_e__": {"S":"task"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {
+                "taskId": {"S":"T-2"},
+                "title": {"S":"Ship"},
+                "search": {"S":"Ship|"},
+                "assignee": {"S":"U-9"}
+              }
+            }
+          }
+        },
+        "requests": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "taskId": {"S":"T-2"},
+                "title": {"S":"Ship"},
+                "search": {"S":"Ship|"},
+                "assignee": {"S":"U-9"},
+                "pk": {"S":"$taskapp#taskid_t-2"},
+                "sk": {"S":"$task_1"},
+                "gsi1pk": {"S":"$taskapp#assignee_u-9"},
+                "gsi1sk": {"S":"$task_1"},
+                "__edb_e__": {"S":"task"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "put failing a validate function",
+      "entity": "task",
+      "chain": [["put",{"taskId":"T-3","title":"no"}]],
+      "params": {
+        "error": {
+          "name": "ElectroValidationError",
+          "message": "Invalid value provided - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001,
+          "fields": [{"field":"title","reason":"Invalid value provided"}]
+        }
+      },
+      "go": {
+        "error": {
+          "name": "ElectroValidationError",
+          "message": "Invalid value provided - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001,
+          "fields": [{"field":"title","reason":"Invalid value provided"}]
+        },
+        "requests": []
+      }
+    },
+    {
+      "name": "put failing a validate regexp",
+      "entity": "task",
+      "chain": [["put",{"taskId":"T-3","title":"Fine","code":"ab12"}]],
+      "params": {
+        "error": {
+          "name": "ElectroValidationError",
+          "message": "Invalid value for attribute \"code\": Failed model defined regex - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001,
+          "fields": [
+            {
+              "field": "code",
+              "reason": "Invalid value for attribute \"code\": Failed model defined regex"
+            }
+          ]
+        }
+      },
+      "go": {
+        "error": {
+          "name": "ElectroValidationError",
+          "message": "Invalid value for attribute \"code\": Failed model defined regex - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001,
+          "fields": [
+            {
+              "field": "code",
+              "reason": "Invalid value for attribute \"code\": Failed model defined regex"
+            }
+          ]
+        },
+        "requests": []
+      }
+    },
+    {
+      "name": "update a readOnly attribute",
+      "entity": "task",
+      "chain": [["update",{"taskId":"T-1"}],["set",{"createdBy":"u-2"}]],
+      "params": {
+        "error": {
+          "name": "ElectroError",
+          "message": "Attribute \"createdBy\" is Read-Only and cannot be updated - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001
+        }
+      },
+      "go": {
+        "error": {
+          "name": "ElectroError",
+          "message": "Attribute \"createdBy\" is Read-Only and cannot be updated - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+          "code": 3001
+        },
+        "requests": []
+      }
+    },
+    {
+      "name": "update triggers a watcher",
+      "entity": "task",
+      "chain": [["update",{"taskId":"T-1"}],["set",{"title":"Rewrite docs","status":"Done"}]],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ExpressionAttributeNames": {
+              "#title": "title",
+              "#status": "status",
+              "#search": "search",
+              "#taskId": "taskId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {
+              ":title_u0": {"S":"Rewrite docs"},
+              ":status_u0": {"S":"done"},
+              ":search_u0": {"S":"Rewrite docs|done"},
+              ":taskId_u0": {"S":"T-1"},
+              ":__edb_e___u0": {"S":"task"},
+              ":__edb_v___u0": {"S":"1"}
+            },
+            "Key": {"pk":{"S":"$taskapp#taskid_t-1"},"sk":{"S":"$task_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #title = :title_u0, #status = :status_u0, #search = :search_u0, #taskId = :taskId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"taskId":{"S":"T-1"}}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#title": "title",
+                "#status": "status",
+                "#search": "search",
+                "#taskId": "taskId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":title_u0": {"S":"Rewrite docs"},
+                ":status_u0": {"S":"done"},
+                ":search_u0": {"S":"Rewrite docs|done"},
+                ":taskId_u0": {"S":"T-1"},
+                ":__edb_e___u0": {"S":"task"},
+                ":__edb_v___u0": {"S":"1"}
+              },
+              "Key": {"pk":{"S":"$taskapp#taskid_t-1"},"sk":{"S":"$task_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #title = :title_u0, #status = :status_u0, #search = :search_u0, #taskId = :taskId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "update removing the sparse index composite",
+      "entity": "task",
+      "chain": [["update",{"taskId":"T-2"}],["remove",["assignee"]]],
+      "params": [
+        {
+          "target": "UpdateItem",
+          "request": {
+            "ExpressionAttributeNames": {
+              "#assignee": "assignee",
+              "#gsi1pk": "gsi1pk",
+              "#taskId": "taskId",
+              "#__edb_e__": "__edb_e__",
+              "#__edb_v__": "__edb_v__"
+            },
+            "ExpressionAttributeValues": {":taskId_u0":{"S":"T-2"},":__edb_e___u0":{"S":"task"},":__edb_v___u0":{"S":"1"}},
+            "Key": {"pk":{"S":"$taskapp#taskid_t-2"},"sk":{"S":"$task_1"}},
+            "TableName": "table",
+            "UpdateExpression": "SET #taskId = :taskId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 REMOVE #assignee, #gsi1pk"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"taskId":{"S":"T-2"}}}}},
+        "requests": [
+          {
+            "target": "UpdateItem",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#assignee": "assignee",
+                "#gsi1pk": "gsi1pk",
+                "#taskId": "taskId",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {":taskId_u0":{"S":"T-2"},":__edb_e___u0":{"S":"task"},":__edb_v___u0":{"S":"1"}},
+              "Key": {"pk":{"S":"$taskapp#taskid_t-2"},"sk":{"S":"$task_1"}},
+              "TableName": "table",
+              "UpdateExpression": "SET #taskId = :taskId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0 REMOVE #assignee, #gsi1pk"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "get applies get and drops hidden attributes",
+      "entity": "task",
+      "chain": [["get",{"taskId":"T-1"}]],
+      "params": false,
+      "responses": [
+        {
+          "Item": {
+            "pk": {"S":"$taskapp#taskid_t-1"},
+            "sk": {"S":"$task_1"},
+            "taskId": {"S":"T-1"},
+            "title": {"S":"Write docs"},
+            "status": {"S":"open"},
+            "search": {"S":"Write docs|open"},
+            "secret": {"S":"s"},
+            "__edb_e__": {"S":"task"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {
+                "taskId": {"S":"T-1"},
+                "title": {"S":"Write docs"},
+                "status": {"S":"OPEN"},
+                "search": {"S":"Write docs|open"}
+              }
+            }
+          }
+        },
+        "requests": [
+          {
+            "target": "GetItem",
+            "request": {"Key":{"pk":{"S":"$taskapp#taskid_t-1"},"sk":{"S":"$task_1"}},"TableName":"table"}
+          }
+        ]
+      }
+    }
+  ]
+}

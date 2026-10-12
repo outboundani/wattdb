@@ -1,0 +1,107 @@
+{
+  "description": "Tier 9: deeply nested maps, an any attribute, and heavy update usage (set, remove, add, subtract, append, delete, data, patch, upsert).",
+  "entities": {
+    "settings": {
+      "model": {"entity":"settings","version":"1","service":"taskapp"},
+      "attributes": {
+        "userId": {"type":"string","required":true},
+        "prefs": {
+          "type": "map",
+          "properties": {
+            "notifications": {
+              "type": "map",
+              "properties": {
+                "email": {
+                  "type": "map",
+                  "properties": {"enabled":{"type":"boolean"},"frequency":{"type":["instant","daily","weekly"]}}
+                },
+                "push": {"type":"map","properties":{"enabled":{"type":"boolean"}}}
+              }
+            },
+            "theme": {"type":"string"}
+          }
+        },
+        "visits": {"type":"number"},
+        "recent": {"type":"list","items":{"type":"string"}},
+        "flags": {"type":"set","items":"string"},
+        "meta": {"type":"any"}
+      },
+      "indexes": {"primary":{"pk":{"field":"pk","composite":["userId"]},"sk":{"field":"sk","composite":[]}}}
+    }
+  },
+  "cases": [
+    {
+      "name": "put deep map",
+      "entity": "settings",
+      "chain": [
+        [
+          "put",
+          {
+            "userId": "U-1",
+            "prefs": {"notifications":{"email":{"enabled":true,"frequency":"daily"}},"theme":"dark"},
+            "meta": {"x":[1,{"y":2}]}
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update with every operation",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        ["set",{"prefs":{"theme":"light"}}],
+        ["remove",["meta"]],
+        ["add",{"visits":1,"flags":["beta"]}],
+        ["append",{"recent":["t-9"]}],
+        ["delete",{"flags":["old"]}]
+      ]
+    },
+    {
+      "name": "update subtract",
+      "entity": "settings",
+      "chain": [["update",{"userId":"U-1"}],["subtract",{"visits":2}]]
+    },
+    {
+      "name": "update nested paths with data",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        [
+          "data",
+          {
+            "$fn": "data",
+            "args": [
+              ["set","prefs.notifications.email.frequency","weekly"],
+              ["remove","prefs.notifications.push"],
+              ["ifNotExists","visits",0],
+              ["append","recent",["t-10"]]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "name": "update with a where condition",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        ["set",{"visits":0}],
+        ["where",{"$fn":"where","args":[["and",["gt","visits",100],["eq","prefs.theme","dark"]]]}]
+      ]
+    },
+    {
+      "name": "update with an invalid nested enum",
+      "entity": "settings",
+      "chain": [
+        ["update",{"userId":"U-1"}],
+        ["set",{"prefs":{"notifications":{"email":{"frequency":"hourly"}}}}]
+      ]
+    },
+    {"name":"patch","entity":"settings","chain":[["patch",{"userId":"U-1"}],["set",{"visits":5}]]},
+    {
+      "name": "upsert",
+      "entity": "settings",
+      "chain": [["upsert",{"userId":"U-1","prefs":{"theme":"dark"}}],["add",{"visits":1}]]
+    }
+  ]
+}

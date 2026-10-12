@@ -1,0 +1,79 @@
+{
+  "description": "Tier 2: a GSI whose pk field is an attribute, and querying it, including ownership filtering of results.",
+  "entities": {
+    "project": {
+      "model": {"entity":"project","version":"1","service":"taskapp"},
+      "attributes": {
+        "projectId": {"type":"string","required":true},
+        "ownerId": {"type":"string","required":true},
+        "title": {"type":"string","required":true}
+      },
+      "indexes": {
+        "primary": {"pk":{"field":"projectId","composite":["projectId"]}},
+        "byOwner": {"index":"ownerId","pk":{"field":"ownerId","composite":["ownerId"]}}
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put",
+      "entity": "project",
+      "chain": [["put",{"projectId":"P-1","ownerId":"U-Mixed","title":"Launch"}]]
+    },
+    {
+      "name": "query by owner drops foreign items",
+      "entity": "project",
+      "chain": [["query.byOwner",{"ownerId":"U-Mixed"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"p-1"},
+              "ownerId": {"S":"u-mixed"},
+              "title": {"S":"Launch"},
+              "__edb_e__": {"S":"project"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "projectId": {"S":"p-2"},
+              "ownerId": {"S":"u-mixed"},
+              "title": {"S":"Old"},
+              "__edb_e__": {"S":"project"},
+              "__edb_v__": {"S":"0"}
+            },
+            {
+              "projectId": {"S":"p-3"},
+              "ownerId": {"S":"u-mixed"},
+              "__edb_e__": {"S":"other"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 3,
+          "ScannedCount": 3
+        }
+      ]
+    },
+    {
+      "name": "query by owner ignoring ownership",
+      "entity": "project",
+      "chain": [["query.byOwner",{"ownerId":"u-mixed"}]],
+      "go": {"ignoreOwnership":true},
+      "params": false,
+      "responses": [
+        {
+          "Items": [
+            {
+              "projectId": {"S":"p-3"},
+              "ownerId": {"S":"u-mixed"},
+              "title": {"S":"Foreign"},
+              "__edb_e__": {"S":"other"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,169 @@
+{
+  "electrodb": "3.9.3",
+  "description": "Tier 3: a numeric GSI key (single numeric composite stored as a number, and explicit cast), plus lowercasing of a stored string key attribute.",
+  "entities": {
+    "member": {
+      "model": {"entity":"member","version":"1","service":"taskapp"},
+      "attributes": {
+        "memberId": {"type":"string","required":true},
+        "teamNumber": {"type":"number","required":true},
+        "rank": {"type":"number","required":true},
+        "level": {"type":"number"}
+      },
+      "indexes": {
+        "primary": {"pk":{"field":"memberId","composite":["memberId"]}},
+        "byTeamNumber": {"index":"teamNumber","pk":{"field":"teamNumber","composite":["teamNumber"]}},
+        "byRank": {"index":"gsi1","pk":{"field":"gsi1pk","composite":["rank"],"cast":"number"}},
+        "byLevelString": {"index":"gsi2","pk":{"field":"gsi2pk","composite":["level"],"cast":"string"}}
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put",
+      "entity": "member",
+      "chain": [["put",{"memberId":"M-XyZ","teamNumber":7,"rank":3,"level":2}]],
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "memberId": {"S":"m-xyz"},
+              "teamNumber": {"N":"7"},
+              "rank": {"N":"3"},
+              "level": {"N":"2"},
+              "gsi1pk": {"N":"3"},
+              "gsi2pk": {"S":"$taskapp$member_1#level_2"},
+              "__edb_e__": {"S":"member"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {"memberId":{"S":"m-xyz"},"teamNumber":{"N":"7"},"rank":{"N":"3"},"level":{"N":"2"}}
+            }
+          }
+        },
+        "requests": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "memberId": {"S":"m-xyz"},
+                "teamNumber": {"N":"7"},
+                "rank": {"N":"3"},
+                "level": {"N":"2"},
+                "gsi1pk": {"N":"3"},
+                "gsi2pk": {"S":"$taskapp$member_1#level_2"},
+                "__edb_e__": {"S":"member"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "query numeric attribute key",
+      "entity": "member",
+      "chain": [["query.byTeamNumber",{"teamNumber":7}]],
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"teamNumber"},
+            "ExpressionAttributeValues": {":pk":{"N":"7"}},
+            "IndexName": "teamNumber",
+            "KeyConditionExpression": "#pk = :pk",
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+        "requests": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"teamNumber"},
+              "ExpressionAttributeValues": {":pk":{"N":"7"}},
+              "IndexName": "teamNumber",
+              "KeyConditionExpression": "#pk = :pk",
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "query cast number key",
+      "entity": "member",
+      "chain": [["query.byRank",{"rank":3}]],
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"gsi1pk"},
+            "ExpressionAttributeValues": {":pk":{"N":"3"}},
+            "IndexName": "gsi1",
+            "KeyConditionExpression": "#pk = :pk",
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+        "requests": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi1pk"},
+              "ExpressionAttributeValues": {":pk":{"N":"3"}},
+              "IndexName": "gsi1",
+              "KeyConditionExpression": "#pk = :pk",
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "query cast string key",
+      "entity": "member",
+      "chain": [["query.byLevelString",{"level":2}]],
+      "params": [
+        {
+          "target": "Query",
+          "request": {
+            "ExpressionAttributeNames": {"#pk":"gsi2pk"},
+            "ExpressionAttributeValues": {":pk":{"S":"$taskapp$member_1#level_2"}},
+            "IndexName": "gsi2",
+            "KeyConditionExpression": "#pk = :pk",
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+        "requests": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi2pk"},
+              "ExpressionAttributeValues": {":pk":{"S":"$taskapp$member_1#level_2"}},
+              "IndexName": "gsi2",
+              "KeyConditionExpression": "#pk = :pk",
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

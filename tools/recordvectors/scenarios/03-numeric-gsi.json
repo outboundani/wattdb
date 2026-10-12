@@ -1,0 +1,34 @@
+{
+  "description": "Tier 3: a numeric GSI key (single numeric composite stored as a number, and explicit cast), plus lowercasing of a stored string key attribute.",
+  "entities": {
+    "member": {
+      "model": {"entity":"member","version":"1","service":"taskapp"},
+      "attributes": {
+        "memberId": {"type":"string","required":true},
+        "teamNumber": {"type":"number","required":true},
+        "rank": {"type":"number","required":true},
+        "level": {"type":"number"}
+      },
+      "indexes": {
+        "primary": {"pk":{"field":"memberId","composite":["memberId"]}},
+        "byTeamNumber": {"index":"teamNumber","pk":{"field":"teamNumber","composite":["teamNumber"]}},
+        "byRank": {"index":"gsi1","pk":{"field":"gsi1pk","composite":["rank"],"cast":"number"}},
+        "byLevelString": {"index":"gsi2","pk":{"field":"gsi2pk","composite":["level"],"cast":"string"}}
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put",
+      "entity": "member",
+      "chain": [["put",{"memberId":"M-XyZ","teamNumber":7,"rank":3,"level":2}]]
+    },
+    {
+      "name": "query numeric attribute key",
+      "entity": "member",
+      "chain": [["query.byTeamNumber",{"teamNumber":7}]]
+    },
+    {"name":"query cast number key","entity":"member","chain":[["query.byRank",{"rank":3}]]},
+    {"name":"query cast string key","entity":"member","chain":[["query.byLevelString",{"level":2}]]}
+  ]
+}

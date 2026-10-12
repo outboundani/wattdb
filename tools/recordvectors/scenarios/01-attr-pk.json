@@ -1,0 +1,80 @@
+{
+  "description": "Tier 1: an attribute used as the pk field, enums, numbers, and create/get/delete.",
+  "entities": {
+    "team": {
+      "model": {"entity":"team","version":"1","service":"taskapp"},
+      "attributes": {
+        "teamId": {"type":"string","required":true},
+        "name": {"type":"string","required":true},
+        "plan": {"type":["free","pro"],"required":true},
+        "seats": {"type":"number"}
+      },
+      "indexes": {"primary":{"pk":{"field":"teamId","composite":["teamId"]}}}
+    }
+  },
+  "cases": [
+    {
+      "name": "create lowercases the stored key attribute",
+      "entity": "team",
+      "chain": [["create",{"teamId":"T-AbC","name":"Core","plan":"pro","seats":5}]]
+    },
+    {
+      "name": "create on an existing item",
+      "entity": "team",
+      "chain": [["create",{"teamId":"T-AbC","name":"Core","plan":"pro"}]],
+      "params": false,
+      "responses": [
+        {
+          "__type": "com.amazonaws.dynamodb.v20120810#ConditionalCheckFailedException",
+          "message": "The conditional request failed"
+        }
+      ]
+    },
+    {
+      "name": "put with an invalid enum",
+      "entity": "team",
+      "chain": [["put",{"teamId":"t-1","name":"Core","plan":"enterprise"}]]
+    },
+    {
+      "name": "put missing a required attribute",
+      "entity": "team",
+      "chain": [["put",{"teamId":"t-1","plan":"free"}]]
+    },
+    {
+      "name": "get",
+      "entity": "team",
+      "chain": [["get",{"teamId":"T-AbC"}]],
+      "responses": [
+        {
+          "Item": {
+            "teamId": {"S":"t-abc"},
+            "name": {"S":"Core"},
+            "plan": {"S":"pro"},
+            "seats": {"N":"5"},
+            "__edb_e__": {"S":"team"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    },
+    {"name":"get not found","entity":"team","chain":[["get",{"teamId":"t-404"}]],"params":false},
+    {
+      "name": "get an item owned by another entity",
+      "entity": "team",
+      "chain": [["get",{"teamId":"t-abc"}]],
+      "params": false,
+      "responses": [
+        {
+          "Item": {
+            "teamId": {"S":"t-abc"},
+            "name": {"S":"Core"},
+            "plan": {"S":"pro"},
+            "__edb_e__": {"S":"other"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    },
+    {"name":"delete","entity":"team","chain":[["delete",{"teamId":"T-AbC"}]]}
+  ]
+}

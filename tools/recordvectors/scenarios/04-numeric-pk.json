@@ -1,0 +1,37 @@
+{
+  "description": "Tier 4: a numeric attribute as the primary key, and an any attribute holding mixed values.",
+  "entities": {
+    "counter": {
+      "model": {"entity":"counter","version":"1","service":"taskapp"},
+      "attributes": {"counterId":{"type":"number","required":true},"payload":{"type":"any"}},
+      "indexes": {"primary":{"pk":{"field":"counterId","composite":["counterId"]}}}
+    }
+  },
+  "cases": [
+    {
+      "name": "put with nested any",
+      "entity": "counter",
+      "chain": [["put",{"counterId":12,"payload":{"a":1,"b":["x",2,true,null],"c":{"d":"e"}}}]]
+    },
+    {
+      "name": "put with scalar any",
+      "entity": "counter",
+      "chain": [["put",{"counterId":13,"payload":"plain"}]]
+    },
+    {
+      "name": "get",
+      "entity": "counter",
+      "chain": [["get",{"counterId":12}]],
+      "responses": [
+        {
+          "Item": {
+            "counterId": {"N":"12"},
+            "payload": {"M":{"a":{"N":"1"},"b":{"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]}}},
+            "__edb_e__": {"S":"counter"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    }
+  ]
+}

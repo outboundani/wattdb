@@ -1,0 +1,96 @@
+{
+  "description": "JS Number formatting in keys and stored values: fractions, exponents, negatives and the safe-integer edge.",
+  "entities": {
+    "metric": {
+      "model": {"entity":"metric","version":"1","service":"taskapp"},
+      "attributes": {"name":{"type":"string","required":true},"value":{"type":"number","required":true}},
+      "indexes": {
+        "primary": {"pk":{"field":"pk","composite":["name"]},"sk":{"field":"sk","composite":["value"]}}
+      }
+    }
+  },
+  "cases": [
+    {"name":"integer","entity":"metric","chain":[["put",{"name":"m","value":42}]],"go":false},
+    {"name":"zero","entity":"metric","chain":[["put",{"name":"m","value":0}]],"go":false},
+    {"name":"negative","entity":"metric","chain":[["put",{"name":"m","value":-17.25}]],"go":false},
+    {"name":"fraction","entity":"metric","chain":[["put",{"name":"m","value":123.456}]],"go":false},
+    {
+      "name": "float rounding",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":0.30000000000000004}]],
+      "go": false
+    },
+    {
+      "name": "1e-6 stays decimal",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":0.000001}]],
+      "go": false
+    },
+    {
+      "name": "1e-7 is exponent",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":1e-7}]],
+      "go": false
+    },
+    {
+      "name": "small exponent",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":1.5e-10}]],
+      "go": false
+    },
+    {
+      "name": "smallest denormal",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":5e-324}]],
+      "go": false
+    },
+    {
+      "name": "max safe integer",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":9007199254740991}]],
+      "go": false
+    },
+    {
+      "name": "above max safe integer (DocumentClient rejects unsafe numbers)",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":9007199254740992}]],
+      "go": false
+    },
+    {
+      "name": "1e20 (DocumentClient rejects unsafe numbers)",
+      "entity": "metric",
+      "chain": [["put",{"name":"m","value":100000000000000000000}]],
+      "go": false
+    },
+    {
+      "name": "query with fraction",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":0.5}]],
+      "go": false
+    },
+    {
+      "name": "query key with 1e20",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":100000000000000000000}]],
+      "go": false
+    },
+    {
+      "name": "query key with 1e21",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":1e+21}]],
+      "go": false
+    },
+    {
+      "name": "query key with 2^53",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":9007199254740992}]],
+      "go": false
+    },
+    {
+      "name": "query key with 1e-7",
+      "entity": "metric",
+      "chain": [["query.primary",{"name":"m"}],["gte",{"value":1e-7}]],
+      "go": false
+    }
+  ]
+}

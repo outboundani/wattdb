@@ -1,0 +1,33 @@
+{
+  "description": "Tier 6: a template key with default (lowercase) casing, and an any attribute used as a string map.",
+  "entities": {
+    "label": {
+      "model": {"entity":"label","version":"1","service":"taskapp"},
+      "attributes": {"name":{"type":"string","required":true},"colors":{"type":"any","required":true}},
+      "indexes": {"primary":{"pk":{"field":"identifier","composite":["name"],"template":"label#${name}"}}}
+    }
+  },
+  "cases": [
+    {
+      "name": "put",
+      "entity": "label",
+      "chain": [["put",{"name":"Bug-Fix","colors":{"light":"#FF0000","dark":"#880000"}}]]
+    },
+    {
+      "name": "get",
+      "entity": "label",
+      "chain": [["get",{"name":"Bug-Fix"}]],
+      "responses": [
+        {
+          "Item": {
+            "identifier": {"S":"label#bug-fix"},
+            "name": {"S":"Bug-Fix"},
+            "colors": {"M":{"light":{"S":"#FF0000"},"dark":{"S":"#880000"}}},
+            "__edb_e__": {"S":"label"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "description": "Tier 5: a template key with casing none, set add, response updated_new, and a function default.",
+  "entities": {
+    "attempt": {
+      "model": {"entity":"attempt","version":"1","service":"taskapp"},
+      "attributes": {
+        "projectId": {"type":"string","required":true},
+        "taskId": {"type":"string","required":true},
+        "userId": {"type":"string","required":true},
+        "count": {"type":"number"},
+        "sessionIds": {"type":"set","items":"string"},
+        "createdAt": {
+          "type": "string",
+          "required": true,
+          "default": {"$fn":"const","args":["2026-01-02T03:04:05.678Z"]}
+        }
+      },
+      "indexes": {
+        "primary": {
+          "pk": {
+            "field": "pk",
+            "composite": ["projectId","taskId","userId"],
+            "template": "attempt#${projectId}#${taskId}#${userId}",
+            "casing": "none"
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put applies the function default",
+      "entity": "attempt",
+      "chain": [["put",{"projectId":"P-1","taskId":"T-Two","userId":"U-3"}]]
+    },
+    {
+      "name": "update add returns updated_new",
+      "entity": "attempt",
+      "chain": [
+        ["update",{"projectId":"P-1","taskId":"T-Two","userId":"U-3"}],
+        ["add",{"count":1,"sessionIds":["s1","s1","s2"]}]
+      ],
+      "go": {"response":"updated_new"},
+      "responses": [{"Attributes":{"count":{"N":"4"},"sessionIds":{"SS":["s0","s1","s2"]}}}]
+    }
+  ]
+}

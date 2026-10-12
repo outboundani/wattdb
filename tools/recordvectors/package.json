@@ -1,0 +1,15 @@
+{
+  "name": "wattdb-recordvectors",
+  "private": true,
+  "description": "Records ElectroDB golden vectors for wattdb's Go tests.",
+  "type": "module",
+  "scripts": {
+    "record": "node record.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "3.654.0",
+    "@aws-sdk/lib-dynamodb": "3.654.0",
+    "@aws-sdk/util-dynamodb": "3.654.0",
+    "electrodb": "3.9.3"
+  }
+}

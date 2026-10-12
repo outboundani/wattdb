@@ -1,0 +1,141 @@
+{
+  "electrodb": "3.9.3",
+  "description": "Tier 4: a numeric attribute as the primary key, and an any attribute holding mixed values.",
+  "entities": {
+    "counter": {
+      "model": {"entity":"counter","version":"1","service":"taskapp"},
+      "attributes": {"counterId":{"type":"number","required":true},"payload":{"type":"any"}},
+      "indexes": {"primary":{"pk":{"field":"counterId","composite":["counterId"]}}}
+    }
+  },
+  "cases": [
+    {
+      "name": "put with nested any",
+      "entity": "counter",
+      "chain": [["put",{"counterId":12,"payload":{"a":1,"b":["x",2,true,null],"c":{"d":"e"}}}]],
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "counterId": {"N":"12"},
+              "payload": {
+                "M": {
+                  "a": {"N":"1"},
+                  "b": {"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]},
+                  "c": {"M":{"d":{"S":"e"}}}
+                }
+              },
+              "__edb_e__": {"S":"counter"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {
+                "counterId": {"N":"12"},
+                "payload": {
+                  "M": {
+                    "a": {"N":"1"},
+                    "b": {"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]},
+                    "c": {"M":{"d":{"S":"e"}}}
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requests": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "counterId": {"N":"12"},
+                "payload": {
+                  "M": {
+                    "a": {"N":"1"},
+                    "b": {"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]},
+                    "c": {"M":{"d":{"S":"e"}}}
+                  }
+                },
+                "__edb_e__": {"S":"counter"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "put with scalar any",
+      "entity": "counter",
+      "chain": [["put",{"counterId":13,"payload":"plain"}]],
+      "params": [
+        {
+          "target": "PutItem",
+          "request": {
+            "Item": {
+              "counterId": {"N":"13"},
+              "payload": {"S":"plain"},
+              "__edb_e__": {"S":"counter"},
+              "__edb_v__": {"S":"1"}
+            },
+            "TableName": "table"
+          }
+        }
+      ],
+      "go": {
+        "result": {"M":{"data":{"M":{"counterId":{"N":"13"},"payload":{"S":"plain"}}}}},
+        "requests": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "counterId": {"N":"13"},
+                "payload": {"S":"plain"},
+                "__edb_e__": {"S":"counter"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "get",
+      "entity": "counter",
+      "chain": [["get",{"counterId":12}]],
+      "responses": [
+        {
+          "Item": {
+            "counterId": {"N":"12"},
+            "payload": {"M":{"a":{"N":"1"},"b":{"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]}}},
+            "__edb_e__": {"S":"counter"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ],
+      "params": [{"target":"GetItem","request":{"Key":{"counterId":{"N":"12"}},"TableName":"table"}}],
+      "go": {
+        "result": {
+          "M": {
+            "data": {
+              "M": {
+                "counterId": {"N":"12"},
+                "payload": {"M":{"a":{"N":"1"},"b":{"L":[{"S":"x"},{"N":"2"},{"BOOL":true},{"NULL":true}]}}}
+              }
+            }
+          }
+        },
+        "requests": [{"target":"GetItem","request":{"Key":{"counterId":{"N":"12"}},"TableName":"table"}}]
+      }
+    }
+  ]
+}

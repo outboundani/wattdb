@@ -1,0 +1,101 @@
+{
+  "description": "Attribute callbacks through the named registry: get/set transforms, watch, validate (function and regexp), hidden, readOnly, and a sparse index condition.",
+  "entities": {
+    "task": {
+      "model": {"entity":"task","version":"1","service":"taskapp"},
+      "attributes": {
+        "taskId": {"type":"string","required":true},
+        "title": {"type":"string","required":true,"validate":{"$fn":"minLength","args":[3]}},
+        "code": {"type":"string","validate":{"$fn":"regexp","args":["^[A-Z]{2}-\\d+$"]}},
+        "status": {"type":"string","set":{"$fn":"lower"},"get":{"$fn":"upper"}},
+        "search": {
+          "type": "string",
+          "watch": ["title","status"],
+          "set": {"$fn":"join","args":["|","title","status"]}
+        },
+        "secret": {"type":"string","hidden":true},
+        "createdBy": {"type":"string","readOnly":true},
+        "assignee": {"type":"string"}
+      },
+      "indexes": {
+        "primary": {"pk":{"field":"pk","composite":["taskId"]},"sk":{"field":"sk","composite":[]}},
+        "byAssignee": {
+          "index": "gsi1",
+          "condition": {"$fn":"has","args":["assignee"]},
+          "pk": {"field":"gsi1pk","composite":["assignee"]},
+          "sk": {"field":"gsi1sk","composite":[]}
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "put runs set and watchers, skips the sparse index",
+      "entity": "task",
+      "chain": [
+        [
+          "put",
+          {
+            "taskId": "T-1",
+            "title": "Write docs",
+            "code": "AB-12",
+            "status": "OPEN",
+            "secret": "s",
+            "createdBy": "u-1"
+          }
+        ]
+      ]
+    },
+    {
+      "name": "put writes the sparse index when its condition holds",
+      "entity": "task",
+      "chain": [["put",{"taskId":"T-2","title":"Ship","assignee":"U-9"}]]
+    },
+    {
+      "name": "put failing a validate function",
+      "entity": "task",
+      "chain": [["put",{"taskId":"T-3","title":"no"}]]
+    },
+    {
+      "name": "put failing a validate regexp",
+      "entity": "task",
+      "chain": [["put",{"taskId":"T-3","title":"Fine","code":"ab12"}]]
+    },
+    {
+      "name": "update a readOnly attribute",
+      "entity": "task",
+      "chain": [["update",{"taskId":"T-1"}],["set",{"createdBy":"u-2"}]]
+    },
+    {
+      "name": "update triggers a watcher",
+      "entity": "task",
+      "chain": [["update",{"taskId":"T-1"}],["set",{"title":"Rewrite docs","status":"Done"}]]
+    },
+    {
+      "name": "update removing the sparse index composite",
+      "entity": "task",
+      "chain": [["update",{"taskId":"T-2"}],["remove",["assignee"]]]
+    },
+    {
+      "name": "get applies get and drops hidden attributes",
+      "entity": "task",
+      "chain": [["get",{"taskId":"T-1"}]],
+      "params": false,
+      "responses": [
+        {
+          "Item": {
+            "pk": {"S":"$taskapp#taskid_t-1"},
+            "sk": {"S":"$task_1"},
+            "taskId": {"S":"T-1"},
+            "title": {"S":"Write docs"},
+            "status": {"S":"open"},
+            "search": {"S":"Write docs|open"},
+            "secret": {"S":"s"},
+            "__edb_e__": {"S":"task"},
+            "__edb_v__": {"S":"1"}
+          }
+        }
+      ]
+    }
+  ]
+}
