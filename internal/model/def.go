@@ -40,9 +40,9 @@ type AttributeDef struct {
 
 	// Callbacks take and return engine values, with Undefined for a missing
 	// value. Nil means none.
-	Default        func() any
-	Get            func(value any, item map[string]any) any
-	Set            func(value any, item map[string]any) any
+	Default        func() (any, error)
+	Get            func(value any, item map[string]any) (any, error)
+	Set            func(value any, item map[string]any) (any, error)
 	Validate       func(value any) (bool, error)
 	ValidateRegexp *regexp.Regexp
 
@@ -72,7 +72,7 @@ type IndexDef struct {
 	Scope           string
 	// Condition decides whether a write keeps this index's keys (a sparse
 	// index). Nil means no condition is defined.
-	Condition func(attrs map[string]any) bool
+	Condition func(attrs map[string]any) (bool, error)
 	PK        KeyDef
 	// SK is nil when the index has no sort key.
 	SK *KeyDef

@@ -1,6 +1,6 @@
 # wattdb implementation plan (approved 2026-10-12)
 
-This turns [decisions.md](decisions.md) (D1–D58) into a build order. The milestone order, porting
+This turns [decisions.md](decisions.md) (D1–D62) into a build order. The milestone order, porting
 order, CI and Go version were approved on 2026-10-12. The package layout below follows the
 decisions, and anything new it raises gets brought to the owner before it's built.
 
@@ -26,7 +26,9 @@ wattdb/                          module github.com/outboundani/wattdb
     query.go                       key conditions, sort-key ops, compare modes, ownership filters
     cursor.go                      ElectroDB-compatible cursors
     batch.go  tx.go  find.go  conv.go  parse.go
-  internal/gen/                  generator: phase 1 (AST → entity types), phase 2 (load schema → rest) (D10, D11)
+  gen/                           generator: phase 1 (AST → entity types), phase 2 (load schema → rest) (D10, D11);
+                                 public because the phase-2 program runs in the user's module
+  wire/                          value conversions used by generated code
   cmd/wattdb/                    `wattdb generate`, `wattdb check`                     (D22)
   testdata/vectors/              recorded ElectroDB golden vectors, generic fixtures   (D8)
   private/                       gitignored: proprietary models, notes, vectors

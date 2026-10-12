@@ -175,7 +175,7 @@ func attributeDef(name string, data json.RawMessage) (model.AttributeDef, error)
 
 // defaultFn resolves a default: a $fn, or a constant (decoded fresh on each
 // call, so callers can't share mutable values).
-func defaultFn(data json.RawMessage) (func() any, error) {
+func defaultFn(data json.RawMessage) (func() (any, error), error) {
 	var fn Fn
 	if data[0] == '{' && json.Unmarshal(data, &fn) == nil && fn.Name != "" {
 		return fn.Default()
@@ -183,9 +183,8 @@ func defaultFn(data json.RawMessage) (func() any, error) {
 	if _, err := Value(data); err != nil {
 		return nil, err
 	}
-	return func() any {
-		v, _ := Value(data)
-		return v
+	return func() (any, error) {
+		return Value(data)
 	}, nil
 }
 

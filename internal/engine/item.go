@@ -101,9 +101,9 @@ func invalid(a *model.Attribute, reason string) error {
 }
 
 // defaultValue mirrors Attribute._makeDefault.
-func defaultValue(a *model.Attribute) any {
+func defaultValue(a *model.Attribute) (any, error) {
 	if a.Default == nil {
-		return Undefined
+		return Undefined, nil
 	}
 	return a.Default()
 }
@@ -142,7 +142,11 @@ func val(a *model.Attribute, v any) (any, error) {
 	case model.TypeMap:
 		data := v
 		if isUndefined(v) {
-			data = defaultValue(a)
+			d, err := defaultValue(a)
+			if err != nil {
+				return nil, err
+			}
+			data = d
 		}
 		if isUndefined(data) {
 			return Undefined, nil
@@ -172,7 +176,9 @@ func val(a *model.Attribute, v any) (any, error) {
 			}
 			data = c
 			if isUndefined(data) {
-				data = defaultValue(a)
+				if data, err = defaultValue(a); err != nil {
+					return nil, err
+				}
 			}
 		}
 		if isUndefined(data) {
@@ -196,7 +202,11 @@ func val(a *model.Attribute, v any) (any, error) {
 
 	case model.TypeSet:
 		if isUndefined(v) {
-			v = defaultValue(a)
+			d, err := defaultValue(a)
+			if err != nil {
+				return nil, err
+			}
+			v = d
 		}
 		if isUndefined(v) {
 			return Undefined, nil
@@ -209,7 +219,7 @@ func val(a *model.Attribute, v any) (any, error) {
 			return nil, err
 		}
 		if isUndefined(v) {
-			v = defaultValue(a)
+			return defaultValue(a)
 		}
 		return v, nil
 	}
@@ -421,7 +431,7 @@ func hasHandler(a *model.Attribute, mth method) bool {
 // maps, lists and sets.
 func mutate(a *model.Attribute, mth method, v any, siblings map[string]any) (any, error) {
 	if mth == methodGet {
-		return get(a, v, siblings), nil
+		return get(a, v, siblings)
 	}
 	return set(a, v, siblings)
 }
@@ -436,9 +446,9 @@ func copyMap(m map[string]any) map[string]any {
 
 // set mirrors the attribute classes' _makeSet.
 func set(a *model.Attribute, v any, siblings map[string]any) (any, error) {
-	custom := func(v any) any {
+	custom := func(v any) (any, error) {
 		if a.Set == nil {
-			return v
+			return v, nil
 		}
 		return a.Set(v, siblings)
 	}
@@ -448,7 +458,7 @@ func set(a *model.Attribute, v any, siblings map[string]any) (any, error) {
 			if a.Set == nil {
 				return Undefined, nil
 			}
-			return custom(v), nil
+			return custom(v)
 		}
 		obj, _ := v.(map[string]any)
 		data := map[string]any{}
@@ -465,11 +475,11 @@ func set(a *model.Attribute, v any, siblings map[string]any) (any, error) {
 				data[p.Field] = r
 			}
 		}
-		return custom(data), nil
+		return custom(data)
 
 	case model.TypeList:
 		if isUndefined(v) {
-			return custom(v), nil
+			return custom(v)
 		}
 		list, _ := v.([]any)
 		data := []any{}
@@ -482,17 +492,17 @@ func set(a *model.Attribute, v any, siblings map[string]any) (any, error) {
 				data = append(data, r)
 			}
 		}
-		return custom(data), nil
+		return custom(data)
 
 	case model.TypeSet:
-		r := custom(fromSet(v))
-		if isUndefined(r) {
-			return Undefined, nil
+		r, err := custom(fromSet(v))
+		if err != nil || isUndefined(r) {
+			return Undefined, err
 		}
 		return toSet(a, r)
 
 	default:
-		return custom(v), nil
+		return custom(v)
 	}
 }
 
@@ -514,13 +524,13 @@ func fromSet(v any) any {
 }
 
 // get mirrors the attribute classes' _makeGet.
-func get(a *model.Attribute, v any, siblings map[string]any) any {
+func get(a *model.Attribute, v any, siblings map[string]any) (any, error) {
 	if a.Hidden {
-		return Undefined
+		return Undefined, nil
 	}
-	custom := func(v any) any {
+	custom := func(v any) (any, error) {
 		if a.Get == nil {
-			return v
+			return v, nil
 		}
 		return a.Get(v, siblings)
 	}
@@ -528,7 +538,7 @@ func get(a *model.Attribute, v any, siblings map[string]any) any {
 	case model.TypeMap:
 		if isUndefined(v) {
 			if a.Get == nil {
-				return Undefined
+				return Undefined, nil
 			}
 			return custom(map[string]any{})
 		}
@@ -539,7 +549,11 @@ func get(a *model.Attribute, v any, siblings map[string]any) any {
 			if isUndefined(pv) {
 				continue
 			}
-			if r := get(p, pv, copyMap(obj)); !isUndefined(r) {
+			r, err := get(p, pv, copyMap(obj))
+			if err != nil {
+				return nil, err
+			}
+			if !isUndefined(r) {
 				data[p.Name] = r
 			}
 		}
@@ -555,7 +569,11 @@ func get(a *model.Attribute, v any, siblings map[string]any) any {
 		}
 		data := []any{}
 		for _, item := range list {
-			if r := get(a.Items, item, listSiblings(list)); !isUndefined(r) {
+			r, err := get(a.Items, item, listSiblings(list))
+			if err != nil {
+				return nil, err
+			}
+			if !isUndefined(r) {
 				data = append(data, r)
 			}
 		}
@@ -565,11 +583,11 @@ func get(a *model.Attribute, v any, siblings map[string]any) any {
 		if !isUndefined(v) {
 			return custom(fromSet(v))
 		}
-		r := custom(Undefined)
-		if isUndefined(r) {
-			return Undefined
+		r, err := custom(Undefined)
+		if err != nil || isUndefined(r) {
+			return Undefined, err
 		}
-		return fromSet(r)
+		return fromSet(r), nil
 
 	default:
 		return custom(unformat(a, v))

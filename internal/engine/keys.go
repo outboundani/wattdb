@@ -219,8 +219,14 @@ func PutKeys(m *model.Model, set, primary Attrs) (map[string]any, error) {
 
 	out := map[string]any{}
 	for _, ix := range completed {
-		if ix.Condition != nil && !ix.Condition(merged) {
-			continue
+		if ix.Condition != nil {
+			keep, err := ix.Condition(merged)
+			if err != nil {
+				return nil, err
+			}
+			if !keep {
+				continue
+			}
 		}
 		keys, err := indexKeys(m, ix, merged, []Attrs{merged}, keyOptions{})
 		if err != nil {

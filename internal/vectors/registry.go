@@ -30,16 +30,16 @@ func (f *Fn) stringArg(i int) (string, error) {
 }
 
 // Condition resolves an index condition callback.
-func (f *Fn) Condition() (func(engine.Attrs) bool, error) {
+func (f *Fn) Condition() (func(engine.Attrs) (bool, error), error) {
 	switch f.Name {
 	case "has":
 		attr, err := f.stringArg(0)
 		if err != nil {
 			return nil, err
 		}
-		return func(a engine.Attrs) bool {
+		return func(a engine.Attrs) (bool, error) {
 			_, ok := a[attr]
-			return ok
+			return ok, nil
 		}, nil
 	case "equals":
 		attr, err := f.stringArg(0)
@@ -53,9 +53,9 @@ func (f *Fn) Condition() (func(engine.Attrs) bool, error) {
 		if err != nil {
 			return nil, err
 		}
-		return func(a engine.Attrs) bool {
+		return func(a engine.Attrs) (bool, error) {
 			v, ok := a[attr]
-			return ok && v == want
+			return ok && v == want, nil
 		}, nil
 	default:
 		return nil, fmt.Errorf("$fn %q is not a condition", f.Name)
@@ -74,7 +74,7 @@ func (f *Fn) intArg(i int) (int, error) {
 }
 
 // Default resolves a default callback.
-func (f *Fn) Default() (func() any, error) {
+func (f *Fn) Default() (func() (any, error), error) {
 	switch f.Name {
 	case "const":
 		if len(f.Args) < 1 {
@@ -87,29 +87,29 @@ func (f *Fn) Default() (func() any, error) {
 }
 
 // Transform resolves a get or set callback.
-func (f *Fn) Transform() (func(any, map[string]any) any, error) {
+func (f *Fn) Transform() (func(any, map[string]any) (any, error), error) {
 	switch f.Name {
 	case "upper", "lower":
 		casing := strings.ToUpper
 		if f.Name == "lower" {
 			casing = strings.ToLower
 		}
-		return func(v any, _ map[string]any) any {
+		return func(v any, _ map[string]any) (any, error) {
 			if s, ok := v.(string); ok {
-				return casing(s)
+				return casing(s), nil
 			}
-			return v
+			return v, nil
 		}, nil
 	case "prefix":
 		p, err := f.stringArg(0)
 		if err != nil {
 			return nil, err
 		}
-		return func(v any, _ map[string]any) any {
+		return func(v any, _ map[string]any) (any, error) {
 			if v == model.Undefined {
-				return v
+				return v, nil
 			}
-			return p + engine.JSString(v)
+			return p + engine.JSString(v), nil
 		}, nil
 	case "join":
 		sep, err := f.stringArg(0)
@@ -124,7 +124,7 @@ func (f *Fn) Transform() (func(any, map[string]any) any, error) {
 			}
 			attrs = append(attrs, a)
 		}
-		return func(_ any, item map[string]any) any {
+		return func(_ any, item map[string]any) (any, error) {
 			parts := make([]string, len(attrs))
 			for i, a := range attrs {
 				v, ok := item[a]
@@ -132,7 +132,7 @@ func (f *Fn) Transform() (func(any, map[string]any) any, error) {
 					parts[i] = engine.JSString(v)
 				}
 			}
-			return strings.Join(parts, sep)
+			return strings.Join(parts, sep), nil
 		}, nil
 	default:
 		return nil, fmt.Errorf("$fn %q is not a get/set transform", f.Name)

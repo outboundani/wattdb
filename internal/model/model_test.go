@@ -57,7 +57,7 @@ func TestNewErrors(t *testing.T) {
 		{"missing table index", base(IndexDef{AccessPattern: "g", Index: "gsi1", PK: KeyDef{Field: "g", Composite: []string{"a"}}}), "missing the table index"},
 		{"collection without sk", base(primary, IndexDef{AccessPattern: "g", Index: "gsi1", Collection: []string{"c"}, PK: KeyDef{Field: "g", Composite: []string{"a"}}}), "collections require an sk"},
 		{"cast number with two composites", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"a", "b"}, Cast: "number"}}), "cast to number"},
-		{"condition on table index", base(IndexDef{AccessPattern: "p", Condition: func(map[string]any) bool { return true }, PK: KeyDef{Field: "pk", Composite: []string{"a"}}}), "only allowed on secondary"},
+		{"condition on table index", base(IndexDef{AccessPattern: "p", Condition: func(map[string]any) (bool, error) { return true, nil }, PK: KeyDef{Field: "pk", Composite: []string{"a"}}}), "only allowed on secondary"},
 		{"same field for pk and sk", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "k", Composite: []string{"a"}}, SK: &KeyDef{Field: "k", Composite: []string{"b"}}}), "both pk and sk"},
 		{"attribute key field with two composites", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "a", Composite: []string{"a", "b"}}}), "can't have other composites"},
 		{"unknown composite", base(IndexDef{AccessPattern: "p", PK: KeyDef{Field: "pk", Composite: []string{"zz"}}}), "not an attribute"},

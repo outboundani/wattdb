@@ -98,9 +98,9 @@ type Attribute struct {
 	// Path is ElectroDB's attribute path, e.g. "steps[*].name".
 	Path string
 
-	Default        func() any
-	Get            func(value any, item map[string]any) any
-	Set            func(value any, item map[string]any) any
+	Default        func() (any, error)
+	Get            func(value any, item map[string]any) (any, error)
+	Set            func(value any, item map[string]any) (any, error)
 	Validate       func(value any) (bool, error)
 	ValidateRegexp *regexp.Regexp
 
@@ -149,7 +149,7 @@ type Index struct {
 	SK             Key
 
 	// Condition is the sparse-index callback; nil when none is defined.
-	Condition  func(attrs map[string]any) bool
+	Condition  func(attrs map[string]any) (bool, error)
 	Projection *Projection
 }
 
