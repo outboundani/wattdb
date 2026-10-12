@@ -20,11 +20,12 @@ The ElectroDB behavior wattdb must reproduce is specified in [design.md](design.
 | D1 | **"Compatible" means stored data plus observable behavior** match ElectroDB: the same items, keys, identifiers (`__edb_e__`/`__edb_v__`), query results, ownership filtering and validation outcomes. Request placeholder names (e.g. `:status_u0`) may differ. | Tests compare items and results, not request JSON. |
 | D2 | **The target is pinned to ElectroDB 3.9.x.** | Reproducible. Upgrades are deliberate, and new ElectroDB features arrive only when the pin is bumped. |
 | D3 | **Copy every observable quirk.** Anything that affects stored bytes, what gets written or updated, or what reads return is copied exactly, bugs included. We may diverge only where ElectroDB throws or rejects input, and each such case is listed in `docs/compat.md`. | We ship some odd behaviors on purpose. |
-| D4 | **Full parity** with ElectroDB's v1 model features, not scoped down to any one codebase's usage. Exceptions are listed explicitly (D5, D51). | Longer before the first port. |
+| D4 | **Full parity** with ElectroDB's v1 model features, not scoped down to any one codebase's usage. Exceptions are listed explicitly (D5, D51, D56). | Longer before the first port. |
 | D5 | **No support for the legacy "beta" model format** (root-level `service`/`entity`/`version`). | Less surface area. Only v1 models are supported. |
 | D6 | **ASCII-only key casing.** Keys use simple ASCII upper/lower casing, not JS Unicode casing. | Non-ASCII composites may produce different keys from JS. That's documented, not guarded. |
 | D7 | **No guards against values JS can't represent** (e.g. integers above 2^53 in numeric keys, binary attributes). | It's the developer's choice. We document the edges rather than block them. |
 | D8 | **The test oracle is recorded golden vectors.** A committed Node script runs ElectroDB 3.9.x to record keys, items and params as JSON, and Go tests compare against them. It's re-run when the pin changes. There's no Node in CI. Go integration tests run against DynamoDB Local via testcontainers-go. | Only recorded cases are covered, and the vectors must be re-recorded on pin bumps. |
+| D56 | **Numbers in keys use Go's `strconv.FormatFloat(v, 'f', -1, 64)`,** not a JS `String(n)` clone. Integers and ordinary decimals come out identical to ElectroDB; only fractions below `1e-6` and magnitudes at or above `1e21` differ (Go writes plain decimals, JS writes exponents). A custom codec's `KeyString` can override this per field. | Keys with those extreme numbers won't match JS-written keys. Listed in `docs/compat.md`. |
 
 ## Schema and code generation
 

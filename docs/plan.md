@@ -1,6 +1,6 @@
 # wattdb implementation plan (approved 2026-10-12)
 
-This turns [decisions.md](decisions.md) (D1–D55) into a build order. The milestone order, porting
+This turns [decisions.md](decisions.md) (D1–D56) into a build order. The milestone order, porting
 order, CI and Go version were approved on 2026-10-12. The package layout below follows the
 decisions, and anything new it raises gets brought to the owner before it's built.
 
@@ -21,7 +21,6 @@ wattdb/                          module github.com/outboundani/wattdb
   internal/model/                normalized model (equivalent of ElectroDB _parseModel)
   internal/engine/               the ElectroDB engine (D23):
     keys.go                        prefixes, labels, casing, padding, templates, cast, clustered, scope
-    jsnum.go                       JS Number→string formatting
     item.go                        default/set/watch/validate on write; get/hidden on read; field mapping
     update.go                      update/patch/upsert expressions, index maintenance, sparse conditions
     query.go                       key conditions, sort-key ops, compare modes, ownership filters
@@ -66,11 +65,13 @@ Each milestone ends with tests passing and nothing half-built.
 
 ### M1: Model and key engine (no DynamoDB)
 - `internal/model`, built from a Go-literal model (the DSL comes later).
-- `internal/engine/keys.go` and `jsnum.go` cover all of design.md §1.1–1.3, including:
+- `internal/engine/keys.go` covers all of design.md §1.1–1.3 (numbers per D56), including:
   - attribute-as-key-field rewriting
   - numeric cast keys
   - the lowercasing of stored attribute values when an attribute is also the key field
-- **Tests:** every key in the vectors matches byte for byte. Fuzz `jsnum` against recorded JS output.
+- `internal/vectors`: loads vectors, builds the model from their embedded JSON, decodes wire
+  AttributeValue JSON, and holds the Go side of the `$fn` registry.
+- **Tests:** every key in the vectors matches byte for byte, except the D56 number cases.
 
 ### M2: Item pipeline
 - Attribute types: string/number/boolean/enum/map/list/set/any, plus codecs.
