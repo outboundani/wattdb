@@ -98,6 +98,9 @@ func checkKeys(t *testing.T, m *model.Model, c vectors.Case, req vectors.Request
 		if !ok {
 			t.Fatalf("unknown access pattern %q", pattern)
 		}
+		if ix.Type == model.Composite {
+			return false // no key fields; the query vectors cover these
+		}
 		typ, sks := queryFacets(t, c.Chain, args)
 		keys, err := engine.QueryKeys(m, ix, typ, args, sks...)
 		if err != nil {

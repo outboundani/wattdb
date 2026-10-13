@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/format"
 	"go/token"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -351,6 +352,27 @@ func renderEntity(e *entity, dbImport string) ([]byte, error) {
 	w.p("\treturn m, nil")
 	w.p("}\n")
 
+	w.p("func (p Partial) encode() (map[string]ddbtypes.AttributeValue, error) {")
+	w.p("\tm := map[string]ddbtypes.AttributeValue{}")
+	encodeFields(&w, e.Attrs, "p", partialVariant)
+	w.p("\treturn m, nil")
+	w.p("}\n")
+
+	w.p("// facets lists p's set attributes in definition order.")
+	w.p("func (p Partial) facets() ([]wattdb.Facet, error) {")
+	w.p("\tm, err := p.encode()")
+	w.p("\tif err != nil {")
+	w.p("\t\treturn nil, err")
+	w.p("\t}")
+	w.p("\tvar out []wattdb.Facet")
+	w.p("\tfor _, f := range inputOrder {")
+	w.p("\t\tif av, ok := m[f]; ok {")
+	w.p("\t\t\tout = append(out, wattdb.Facet{Name: f, Value: av})")
+	w.p("\t\t}")
+	w.p("\t}")
+	w.p("\treturn out, nil")
+	w.p("}\n")
+
 	w.p("func (k Key) encode() (map[string]ddbtypes.AttributeValue, error) {")
 	w.p("\tm := map[string]ddbtypes.AttributeValue{}")
 	for _, a := range e.Key {
@@ -658,6 +680,121 @@ func renderClient(w *emitter, e *entity) {
 		fields[i] = strconv.Quote(a.Field)
 	}
 	w.p("var inputOrder = []string{%s}\n", strings.Join(fields, ", "))
+	renderClientExtras(w, e)
+}
+
+// renderClientExtras writes batches, checks, find/match, conversions and
+// parse (decisions D41, D42, D44, D45, D46), and the helpers collection
+// clients use.
+func renderClientExtras(w *emitter, e *entity) {
+	E := e.structName()
+	w.p("// BatchGet reads many items, in chunks of 100.")
+	w.p("func (c *Client) BatchGet(keys ...Key) *wattdb.BatchGet[%s, Key] {", E)
+	w.p("	return wattdb.NewBatchGet(c.t, keys, Key.encode)")
+	w.p("}\n")
+	w.p("// BatchPut writes many items, in chunks of 25.")
+	w.p("func (c *Client) BatchPut(items ...Input) *wattdb.BatchWrite[Input] {")
+	w.p("\treturn wattdb.NewBatchPut(c.t, items, Input.encode)")
+	w.p("}\n")
+	w.p("// BatchDelete deletes many items, in chunks of 25.")
+	w.p("func (c *Client) BatchDelete(keys ...Key) *wattdb.BatchWrite[Key] {")
+	w.p("\treturn wattdb.NewBatchDelete(c.t, keys, Key.encode)")
+	w.p("}\n")
+	w.p("// Check is a transaction condition check on one item.")
+	w.p("func (c *Client) Check(k Key) *wattdb.TxCheck[%s, Partial] {", E)
+	w.p("\treturn c.t.Check(k.encode())")
+	w.p("}\n")
+	w.p("// Filter selects items by attribute values for Find and Match; nil fields")
+	w.p("// are ignored. It's the Partial type, so composites read back by Conv can")
+	w.p("// be passed in.")
+	w.p("type Filter = Partial\n")
+	w.p("// Find reads the items with the given attributes through the access")
+	w.p("// pattern that fits best, or a scan when none does.")
+	w.p("func (c *Client) Find(f Filter) *wattdb.Find[%s, Partial] {", E)
+	w.p("\treturn c.t.Find(f.facets())")
+	w.p("}\n")
+	w.p("// Match is Find, also filtering on every given attribute.")
+	w.p("func (c *Client) Match(f Filter) *wattdb.Find[%s, Partial] {", E)
+	w.p("\treturn c.t.Match(f.facets())")
+	w.p("}\n")
+	w.p("// Parse decodes a raw item read some other way, such as a stream record.")
+	w.p("// wattdb.ErrNotFound means it isn't a %s item.", e.Name)
+	w.p("func (c *Client) Parse(item map[string]ddbtypes.AttributeValue) (%s, error) {", E)
+	w.p("\treturn c.t.Parse(item)")
+	w.p("}\n")
+
+	cv := fmt.Sprintf("wattdb.Conv[%s, Partial]", E)
+	w.p("// Conv converts between composite attributes, keys and cursors.")
+	w.p("func (c *Client) Conv() Conv { return Conv{c.t.Conv()} }\n")
+	w.p("// Conv converts between composite attributes, keys and cursors across")
+	w.p("// every index; its access-pattern methods narrow it to one index.")
+	w.p("type Conv struct{ c %s }\n", cv)
+	w.p("// KeysFromComposite builds every index's keys that f's composites allow.")
+	w.p("func (v Conv) KeysFromComposite(f Filter, strict wattdb.Strict) (map[string]ddbtypes.AttributeValue, error) {")
+	w.p("\tm, err := f.encode()")
+	w.p("\treturn v.c.KeysFromComposite(m, err, strict)")
+	w.p("}\n")
+	w.p("// CursorFromComposite builds a cursor from every composite.")
+	w.p("func (v Conv) CursorFromComposite(f Filter) (wattdb.Cursor, error) {")
+	w.p("\tm, err := f.encode()")
+	w.p("\treturn v.c.CursorFromComposite(m, err)")
+	w.p("}\n")
+	w.p("// CursorFromKeys encodes keys as a cursor.")
+	w.p("func (v Conv) CursorFromKeys(keys map[string]ddbtypes.AttributeValue) (wattdb.Cursor, error) {")
+	w.p("\treturn v.c.CursorFromKeys(keys)")
+	w.p("}\n")
+	w.p("// KeysFromCursor decodes a cursor's keys.")
+	w.p("func (v Conv) KeysFromCursor(c wattdb.Cursor) (map[string]ddbtypes.AttributeValue, error) {")
+	w.p("\treturn v.c.KeysFromCursor(c)")
+	w.p("}\n")
+	w.p("// CompositeFromKeys reads the composites back out of every index's keys.")
+	w.p("func (v Conv) CompositeFromKeys(keys map[string]ddbtypes.AttributeValue) (Partial, error) {")
+	w.p("\treturn v.c.CompositeFromKeys(keys)")
+	w.p("}\n")
+	w.p("// CompositeFromCursor reads the composites back out of a cursor.")
+	w.p("func (v Conv) CompositeFromCursor(c wattdb.Cursor) (Partial, error) {")
+	w.p("\treturn v.c.CompositeFromCursor(c)")
+	w.p("}\n")
+	for _, p := range e.Patterns {
+		w.p("// %s narrows the conversions to the %s access pattern.", p.GoName, p.Name)
+		w.p("func (v Conv) %s() IndexConv { return IndexConv{v.c, %q} }\n", p.GoName, p.Name)
+	}
+	w.p("// IndexConv converts between composites, keys and cursors of one access")
+	w.p("// pattern (and the table's keys).")
+	w.p("type IndexConv struct {")
+	w.p("\tc       %s", cv)
+	w.p("\tpattern string")
+	w.p("}\n")
+	w.p("// KeysFromComposite builds the index's keys from f's composites.")
+	w.p("func (v IndexConv) KeysFromComposite(f Filter, strict wattdb.Strict) (map[string]ddbtypes.AttributeValue, error) {")
+	w.p("\tm, err := f.encode()")
+	w.p("\treturn v.c.IndexKeysFromComposite(v.pattern, m, err, strict)")
+	w.p("}\n")
+	w.p("// CursorFromComposite builds the index's cursor from every composite.")
+	w.p("func (v IndexConv) CursorFromComposite(f Filter) (wattdb.Cursor, error) {")
+	w.p("\tm, err := f.encode()")
+	w.p("\treturn v.c.IndexCursorFromComposite(v.pattern, m, err)")
+	w.p("}\n")
+	w.p("// CursorFromKeys encodes the index's keys as a cursor.")
+	w.p("func (v IndexConv) CursorFromKeys(keys map[string]ddbtypes.AttributeValue) (wattdb.Cursor, error) {")
+	w.p("\treturn v.c.IndexCursorFromKeys(v.pattern, keys)")
+	w.p("}\n")
+	w.p("// CompositeFromKeys reads the composites back out of the index's keys.")
+	w.p("func (v IndexConv) CompositeFromKeys(keys map[string]ddbtypes.AttributeValue) (Partial, error) {")
+	w.p("\treturn v.c.IndexCompositeFromKeys(v.pattern, keys)")
+	w.p("}\n")
+	w.p("// CompositeFromCursor reads the composites back out of the index's cursor.")
+	w.p("func (v IndexConv) CompositeFromCursor(c wattdb.Cursor) (Partial, error) {")
+	w.p("\treturn v.c.IndexCompositeFromCursor(v.pattern, c)")
+	w.p("}\n")
+
+	w.p("// Definition returns the compiled entity; generated collection clients")
+	w.p("// use it.")
+	w.p("func Definition() (*wattdb.EntityDef, error) { return entityDef() }\n")
+	w.p("// Facets encodes f's set attributes; generated collection clients use it.")
+	w.p("func Facets(f Filter) ([]wattdb.Facet, error) { return f.facets() }\n")
+	w.p("// Decode decodes a stored item; generated collection clients use it.")
+	w.p("func Decode(m map[string]ddbtypes.AttributeValue) (%s, error) { return decode%s(m) }\n", E, E)
 }
 
 // descType is the Go type of an attribute's descriptor.
@@ -779,12 +916,10 @@ func renderQueries(w *emitter, e *entity) {
 	w.p("// Scan reads every %s item in the table.", e.Name)
 	w.p("func (c *Client) Scan() *wattdb.Scan[%s, Partial] { return c.t.Scan(\"\") }\n", E)
 	for _, p := range e.Patterns {
-		if p.Composite {
-			w.p("// The %s access pattern is a multi-attribute index; its queries come with collections.\n", p.Name)
-			continue
+		if !p.Composite {
+			w.p("// Scan%s reads every %s item in the %s index.", p.GoName, e.Name, p.Name)
+			w.p("func (c *Client) Scan%s() *wattdb.Scan[%s, Partial] { return c.t.Scan(%q) }\n", p.GoName, E, p.Name)
 		}
-		w.p("// Scan%s reads every %s item in the %s index.", p.GoName, e.Name, p.Name)
-		w.p("func (c *Client) Scan%s() *wattdb.Scan[%s, Partial] { return c.t.Scan(%q) }\n", p.GoName, E, p.Name)
 
 		used := map[string]bool{}
 		var params, encs []string
@@ -857,5 +992,235 @@ func renderQueries(w *emitter, e *entity) {
 			w.p("\treturn s.q.KeyBegins(%q, av, err)", a.Field)
 			w.p("}\n")
 		}
+	}
+}
+
+// pluralName is an entity's plural Go name (decision D21).
+func pluralName(e *entity) string {
+	if e.Plural != "" {
+		return exportName(e.Plural)
+	}
+	n := e.Name
+	lower := strings.ToLower(n)
+	switch {
+	case strings.HasSuffix(lower, "s"), strings.HasSuffix(lower, "x"), strings.HasSuffix(lower, "z"),
+		strings.HasSuffix(lower, "ch"), strings.HasSuffix(lower, "sh"):
+		n += "es"
+	case strings.HasSuffix(lower, "y") && len(lower) > 1 && !strings.ContainsRune("aeiou", rune(lower[len(lower)-2])):
+		n = n[:len(n)-1] + "ies"
+	default:
+		n += "s"
+	}
+	return exportName(n)
+}
+
+// serviceCollection is one collection of a service and its members, in
+// service order.
+type serviceCollection struct {
+	Name    string
+	GoName  string
+	Members []*entity
+	// Pattern is the first member's access pattern for the collection.
+	Pattern pattern
+}
+
+// serviceCollections lists a service's collections in the order they first
+// appear.
+func serviceCollections(entities []*entity) []*serviceCollection {
+	var out []*serviceCollection
+	byName := map[string]*serviceCollection{}
+	for _, e := range entities {
+		for _, p := range e.Patterns {
+			for _, c := range p.Collections {
+				sc, ok := byName[c]
+				if !ok {
+					sc = &serviceCollection{Name: c, GoName: exportName(c), Pattern: p}
+					byName[c] = sc
+					out = append(out, sc)
+				}
+				if !slices.Contains(sc.Members, e) {
+					sc.Members = append(sc.Members, e)
+				}
+			}
+		}
+	}
+	return out
+}
+
+func attrImports(a *attribute) []string {
+	var out []string
+	switch a.Kind {
+	case attr.KindTime, attr.KindDuration:
+		out = append(out, "time")
+	}
+	if a.Elem.Import != "" {
+		out = append(out, a.Elem.Import)
+	}
+	return out
+}
+
+// renderService renders db/<service>/collections.go: one client per
+// collection (decision D43).
+func renderService(pkg string, entities []*entity, colls []*serviceCollection, dbImport string) ([]byte, error) {
+	var w emitter
+	w.WriteString(header)
+	w.p("// Package %s queries the collections of the %s service (decision D43).", pkg, entities[0].Service)
+	w.p("package %s\n", pkg)
+	imports := []string{
+		"errors",
+		`ddbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"`,
+		"github.com/outboundani/wattdb",
+	}
+	seen := map[*entity]bool{}
+	for _, c := range colls {
+		for _, e := range c.Members {
+			if !seen[e] {
+				seen[e] = true
+				imports = append(imports, strings.TrimSuffix(dbImport, "/")+"/"+e.Pkg)
+			}
+		}
+		for _, a := range append(append([]*attribute{}, c.Pattern.PK...), c.Pattern.SK...) {
+			imports = append(imports, attrImports(a)...)
+		}
+	}
+	sort.Strings(imports)
+	importBlock(&w, dedupe(imports))
+
+	w.p("// one returns the single facet a step encodes.")
+	w.p("func one(fs []wattdb.Facet, err error) (ddbtypes.AttributeValue, error) {")
+	w.p("\tif err != nil || len(fs) == 0 {")
+	w.p("\t\treturn nil, err")
+	w.p("\t}")
+	w.p("\treturn fs[0].Value, nil")
+	w.p("}\n")
+
+	for _, c := range colls {
+		renderCollection(&w, c)
+	}
+	return gofmt(pkg+"/collections.go", w.Bytes())
+}
+
+func renderCollection(w *emitter, c *serviceCollection) {
+	first := c.Members[0]
+	fp := first.Pkg
+	R := c.GoName + "Result"
+	qt := fmt.Sprintf("*wattdb.CollectionQuery[%s]", R)
+	var names []string
+	for _, e := range c.Members {
+		names = append(names, pluralName(e))
+	}
+
+	w.p("// %s is the %s collection: %s sharing one index.", c.GoName, c.Name, strings.Join(names, ", "))
+	w.p("type %s struct{ c *wattdb.Collection[%s] }\n", c.GoName, R)
+	w.p("// %s holds a %s query's items by entity.", R, c.Name)
+	w.p("type %s struct {", R)
+	for i, e := range c.Members {
+		w.p("\t%s []%s.%s", names[i], e.Pkg, e.structName())
+	}
+	w.p("}\n")
+	w.p("// %sKey holds the %s collection's partition-key composites.", c.GoName, c.Name)
+	w.p("type %sKey struct {", c.GoName)
+	for _, a := range c.Pattern.PK {
+		w.p("\t%s %s %s", a.GoName, a.goTypeQ(fp), jsonTag(a, false))
+	}
+	w.p("}\n")
+
+	w.p("// New%s returns a client for the %s collection in table.", c.GoName, c.Name)
+	w.p("func New%s(cfg *wattdb.Config, table string) (*%s, error) {", c.GoName, c.GoName)
+	w.p("\tvar members []wattdb.CollectionMember")
+	w.p("\tfor _, m := range []struct {")
+	w.p("\t\talias string")
+	w.p("\t\tdef   func() (*wattdb.EntityDef, error)")
+	w.p("\t}{")
+	for _, e := range c.Members {
+		w.p("\t\t{%q, %s.Definition},", e.Name, e.Pkg)
+	}
+	w.p("\t} {")
+	w.p("\t\td, err := m.def()")
+	w.p("\t\tif err != nil {")
+	w.p("\t\t\treturn nil, err")
+	w.p("\t\t}")
+	w.p("\t\tmembers = append(members, wattdb.CollectionMember{Alias: m.alias, Def: d})")
+	w.p("\t}")
+	w.p("\tc, err := wattdb.NewCollection(cfg, table, %q, members, func(r *%s, i int, item map[string]ddbtypes.AttributeValue) error {", c.Name, R)
+	w.p("\t\tswitch i {")
+	for i, e := range c.Members {
+		w.p("\t\tcase %d:", i)
+		w.p("\t\t\tv, err := %s.Decode(item)", e.Pkg)
+		w.p("\t\t\tif err != nil {")
+		w.p("\t\t\t\treturn err")
+		w.p("\t\t\t}")
+		w.p("\t\t\tr.%s = append(r.%s, v)", names[i], names[i])
+	}
+	w.p("\t\t}")
+	w.p("\t\treturn nil")
+	w.p("\t})")
+	w.p("\tif err != nil {")
+	w.p("\t\treturn nil, err")
+	w.p("\t}")
+	w.p("\treturn &%s{c: c}, nil", c.GoName)
+	w.p("}\n")
+
+	steps := c.Pattern.Type != "isolated" && len(c.Pattern.SK) > 0
+	ret, wrap := qt, "%s"
+	if steps {
+		ret = c.GoName + "Query"
+		wrap = ret + "{%s}"
+	}
+	w.p("// Query queries the collection for one partition.")
+	w.p("func (c *%s) Query(k %sKey) %s {", c.GoName, c.GoName, ret)
+	var sets []string
+	for _, a := range c.Pattern.PK {
+		sets = append(sets, fmt.Sprintf("%s: &k.%s", a.GoName, a.GoName))
+	}
+	w.p("\tfacets, err := %s.Facets(%s.Filter{%s})", fp, fp, strings.Join(sets, ", "))
+	w.p("\treturn "+wrap, "c.c.Query(facets, err)")
+	w.p("}\n")
+	if !steps {
+		return
+	}
+	for i, a := range c.Pattern.SK {
+		holder := c.GoName + "Query"
+		if i > 0 {
+			holder = c.GoName + "Query" + c.Pattern.SK[i-1].GoName
+		}
+		w.p("// %s is a %s query; %s() adds a sort-key condition.", holder, c.Name, a.GoName)
+		w.p("type %s struct{ %s }\n", holder, qt)
+		step := c.GoName + a.GoName + "Step"
+		w.p("// %s starts a condition on %s.", a.GoName, a.Field)
+		w.p("func (q %s) %s() %s { return %s{q.CollectionQuery} }\n", holder, a.GoName, step, step)
+		w.p("// %s is a sort-key condition on %s.", step, a.Field)
+		w.p("type %s struct{ q %s }\n", step, qt)
+		t := a.goTypeQ(fp)
+		enc := fmt.Sprintf("one(%s.Facets(%s.Filter{%s: &v}))", fp, fp, a.GoName)
+		if i < len(c.Pattern.SK)-1 {
+			next := c.GoName + "Query" + a.GoName
+			w.p("// Eq fixes %s and moves to the next sort-key composite.", a.Field)
+			w.p("func (s %s) Eq(v %s) %s {", step, t, next)
+			w.p("\tav, err := %s", enc)
+			w.p("\treturn %s{s.q.KeyEq(%q, av, err)}", next, a.Field)
+			w.p("}\n")
+		} else {
+			w.p("// Eq fixes %s, completing the sort key.", a.Field)
+			w.p("func (s %s) Eq(v %s) %s {", step, t, qt)
+			w.p("\tav, err := %s", enc)
+			w.p("\treturn s.q.KeyEq(%q, av, err)", a.Field)
+			w.p("}\n")
+		}
+		for _, op := range []struct{ name, key string }{{"Gt", "gt"}, {"Gte", "gte"}, {"Lt", "lt"}, {"Lte", "lte"}} {
+			w.p("func (s %s) %s(v %s) %s {", step, op.name, t, qt)
+			w.p("\tav, err := %s", enc)
+			w.p("\treturn s.q.KeyCompare(%q, %q, av, err)", op.key, a.Field)
+			w.p("}\n")
+		}
+		w.p("func (s %s) Between(lo, hi %s) %s {", step, t, qt)
+		w.p("\ta, err1 := one(%s.Facets(%s.Filter{%s: &lo}))", fp, fp, a.GoName)
+		w.p("\tb, err2 := one(%s.Facets(%s.Filter{%s: &hi}))", fp, fp, a.GoName)
+		w.p("\treturn s.q.KeyBetween(%q, a, b, errors.Join(err1, err2))", a.Field)
+		w.p("}\n")
+		w.p("func (s %s) BeginsWith(v %s) %s {", step, t, qt)
+		w.p("\tav, err := %s", enc)
+		w.p("\treturn s.q.KeyBegins(%q, av, err)", a.Field)
+		w.p("}\n")
 	}
 }

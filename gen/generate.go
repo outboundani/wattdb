@@ -269,6 +269,34 @@ func run(opts Options, schemas []Schema) error {
 		files[filepath.Join(dir, "types.go")] = types
 		files[filepath.Join(dir, "entity.go")] = ent
 	}
+	var services []string
+	byService := map[string][]*entity{}
+	for _, e := range entities {
+		if _, ok := byService[e.Service]; !ok {
+			services = append(services, e.Service)
+		}
+		byService[e.Service] = append(byService[e.Service], e)
+	}
+	pkgs := map[string]string{}
+	for _, e := range entities {
+		pkgs[e.Pkg] = "entity " + e.Name
+	}
+	for _, svc := range services {
+		colls := serviceCollections(byService[svc])
+		if len(colls) == 0 {
+			continue
+		}
+		pkg := packageName(svc, "")
+		if prev, ok := pkgs[pkg]; ok {
+			return fmt.Errorf("service %q generates package %s, which %s also generates", svc, pkg, prev)
+		}
+		pkgs[pkg] = "service " + svc
+		src, err := renderService(pkg, byService[svc], colls, opts.DBImport)
+		if err != nil {
+			return err
+		}
+		files[filepath.Join(opts.OutDir, pkg, "collections.go")] = src
+	}
 	rt, err := renderRuntime(entities, opts.DBImport)
 	if err != nil {
 		return err

@@ -7,5 +7,3 @@ import ddbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 func EncodeInput(in Input) (map[string]ddbtypes.AttributeValue, error) { return in.encode() }
 
 var EntityDef = entityDef
-
-var Decode = decodeDoc

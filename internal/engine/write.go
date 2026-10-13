@@ -21,6 +21,7 @@ const (
 	MethodUpdate Method = "update"
 	MethodPatch  Method = "patch"
 	MethodUpsert Method = "upsert"
+	MethodCheck  Method = "check"
 )
 
 // Entry is one attribute path and value, as in ElectroDB's set({...}) etc.
@@ -79,6 +80,9 @@ type Options struct {
 	// Exec is true when the request will be sent (".go()"), not just
 	// rendered (".params()"); it changes the get projection.
 	Exec bool
+	// Transaction is set for transaction items: Response then sets
+	// ReturnValuesOnConditionCheckFailure.
+	Transaction bool
 }
 
 // Write builds one single-item operation, mirroring ElectroDB's chain state.
@@ -151,6 +155,14 @@ func (w *Write) keyFacets(obj Attrs) {
 // NewGet starts a get.
 func NewGet(m *model.Model, key Attrs) *Write {
 	w := newWrite(m, MethodGet)
+	w.keyFacets(key)
+	w.include = Attrs{}
+	return w
+}
+
+// NewCheck starts a transaction condition check.
+func NewCheck(m *model.Model, key Attrs) *Write {
+	w := newWrite(m, MethodCheck)
 	w.keyFacets(key)
 	w.include = Attrs{}
 	return w
@@ -492,8 +504,8 @@ func (w *Write) Build(table string, opt Options) (*Request, error) {
 	r := &Request{w: w, opts: opt, Params: map[string]any{}}
 	var err error
 	switch w.method {
-	case MethodGet, MethodDelete, MethodRemove:
-		r.Target = map[Method]string{MethodGet: "GetItem", MethodDelete: "DeleteItem", MethodRemove: "DeleteItem"}[w.method]
+	case MethodGet, MethodDelete, MethodRemove, MethodCheck:
+		r.Target = map[Method]string{MethodGet: "GetItem", MethodDelete: "DeleteItem", MethodRemove: "DeleteItem", MethodCheck: "ConditionCheck"}[w.method]
 		key, kerr := PrimaryKey(w.m, mergeAttrs(w.pk, w.sk))
 		if kerr != nil {
 			return nil, kerr
@@ -520,7 +532,11 @@ func (w *Write) Build(table string, opt Options) (*Request, error) {
 		if !ok {
 			return nil, fmt.Errorf("invalid response option %q", opt.Response)
 		}
-		r.Params["ReturnValues"] = rv
+		if opt.Transaction {
+			r.Params["ReturnValuesOnConditionCheckFailure"] = rv
+		} else {
+			r.Params["ReturnValues"] = rv
+		}
 	}
 	if opt.ReturnRejected == "all_old" {
 		r.Params["ReturnValuesOnConditionCheckFailure"] = "ALL_OLD"

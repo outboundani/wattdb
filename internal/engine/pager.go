@@ -455,6 +455,8 @@ type RunResult struct {
 	Next map[string]any
 	// Unprocessed lists the keys hydrate couldn't fetch.
 	Unprocessed []map[string]any
+	// Groups holds a collection query's items, per member.
+	Groups [][]map[string]any
 }
 
 // WithStartKey returns the params with an ExclusiveStartKey.
@@ -471,6 +473,9 @@ func (r *QueryRequest) WithStartKey(key map[string]any) map[string]any {
 
 // Run mirrors executeQuery for queries and scans.
 func (r *QueryRequest) Run(start map[string]any, opt RunOptions, run Runner) (RunResult, error) {
+	if r.q.coll != nil {
+		return r.runCollection(start, opt, run)
+	}
 	var res RunResult
 	esk := start
 	iterations, count := 0, 0
@@ -521,10 +526,14 @@ func (r *QueryRequest) Run(start map[string]any, opt RunOptions, run Runner) (Ru
 
 // hydrate mirrors Entity.hydrate: fetch the full items behind keys.
 func (r *QueryRequest) hydrate(items []map[string]any, opt RunOptions, run Runner) ([]map[string]any, []map[string]any, error) {
-	m := r.q.m
+	return r.hydrateFor(r.q.m, items, opt, run)
+}
+
+func (r *QueryRequest) hydrateFor(m *model.Model, items []map[string]any, opt RunOptions, run Runner) ([]map[string]any, []map[string]any, error) {
 	var composites []Attrs
 	var validKeys []map[string]any
-	for _, it := range r.HydrateKeys(items) {
+	for _, it := range items {
+		it := KeysToItem(m, m.TableIndex(), it)
 		if it != nil {
 			composites = append(composites, it)
 		}

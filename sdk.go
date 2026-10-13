@@ -155,3 +155,36 @@ func (p sdkParams) scan() *dynamodb.ScanInput {
 		Limit: p.limit, ConsistentRead: p.consistent, ExclusiveStartKey: p.startKey,
 	}
 }
+
+// txWriteItem renders a transaction write item; target is the engine
+// request's operation.
+func (p sdkParams) txWriteItem(target string) types.TransactWriteItem {
+	var item types.TransactWriteItem
+	switch target {
+	case "PutItem":
+		item.Put = &types.Put{
+			TableName: aws.String(p.table), Item: p.item, ConditionExpression: p.condition,
+			ExpressionAttributeNames: p.names, ExpressionAttributeValues: p.values,
+			ReturnValuesOnConditionCheckFailure: p.returnCCF,
+		}
+	case "DeleteItem":
+		item.Delete = &types.Delete{
+			TableName: aws.String(p.table), Key: p.key, ConditionExpression: p.condition,
+			ExpressionAttributeNames: p.names, ExpressionAttributeValues: p.values,
+			ReturnValuesOnConditionCheckFailure: p.returnCCF,
+		}
+	case "UpdateItem":
+		item.Update = &types.Update{
+			TableName: aws.String(p.table), Key: p.key, UpdateExpression: p.update,
+			ConditionExpression: p.condition, ExpressionAttributeNames: p.names,
+			ExpressionAttributeValues: p.values, ReturnValuesOnConditionCheckFailure: p.returnCCF,
+		}
+	case "ConditionCheck":
+		item.ConditionCheck = &types.ConditionCheck{
+			TableName: aws.String(p.table), Key: p.key, ConditionExpression: p.condition,
+			ExpressionAttributeNames: p.names, ExpressionAttributeValues: p.values,
+			ReturnValuesOnConditionCheckFailure: p.returnCCF,
+		}
+	}
+	return item
+}

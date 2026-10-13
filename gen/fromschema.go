@@ -20,6 +20,7 @@ func fromSchema(pkg, typeName string, ptr bool, s wattdb.Schema) (*entity, error
 		SchemaPtr:  ptr,
 		Name:       m.Entity,
 		Version:    m.Version,
+		Service:    m.Service.Name(),
 		Plural:     m.Plural,
 		Pkg:        packageName(m.Entity, m.Version),
 	}
@@ -54,7 +55,11 @@ func fromSchema(pkg, typeName string, ptr bool, s wattdb.Schema) (*entity, error
 		if d.Condition != nil {
 			e.Conditions = append(e.Conditions, condition{AccessPattern: d.AccessPattern, Index: i})
 		}
-		p := pattern{Name: d.AccessPattern, GoName: exportName(d.AccessPattern), HasSK: d.SK != nil, Composite: d.Type == "composite"}
+		p := pattern{Name: d.AccessPattern, GoName: exportName(d.AccessPattern), HasSK: d.SK != nil,
+			Composite: d.Type == "composite", Type: string(d.Type), Collections: d.Collection}
+		if p.Type == "" {
+			p.Type = "isolated"
+		}
 		for _, n := range keyComposites(d.PK) {
 			if a, ok := byName[n]; ok {
 				p.PK = append(p.PK, a)
@@ -93,7 +98,8 @@ func keyComposites(k index.Key) []string {
 // checkPatternNames rejects access patterns whose generated names collide.
 func (e *entity) checkPatternNames() error {
 	reserved := map[string]bool{"Get": true, "Put": true, "Create": true, "Delete": true, "Remove": true,
-		"Update": true, "Patch": true, "Upsert": true, "Scan": true}
+		"Update": true, "Patch": true, "Upsert": true, "Scan": true, "BatchGet": true, "BatchPut": true,
+		"BatchDelete": true, "Check": true, "Find": true, "Match": true, "Conv": true, "Parse": true}
 	seen := map[string]string{}
 	for _, p := range e.Patterns {
 		if reserved[p.GoName] {

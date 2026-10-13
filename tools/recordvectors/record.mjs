@@ -10,7 +10,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { Entity, Service } from "electrodb";
+import { Entity, Service, createConversions } from "electrodb";
 import * as lib from "@aws-sdk/lib-dynamodb";
 import { convertToAttr } from "@aws-sdk/util-dynamodb";
 import { format } from "./format.mjs";
@@ -170,6 +170,8 @@ async function recordScenario(file) {
   for (const [name, def] of Object.entries(scenario.entities ?? {})) {
     const schema = resolve({ model: def.model, attributes: def.attributes, indexes: def.indexes });
     entities[name] = new Entity(schema, { table, client, ...resolve(def.config ?? {}) });
+    // Expose ElectroDB's createConversions(entity) as entity.conversions.
+    entities[name].conversions = createConversions(entities[name]);
   }
   const services = {};
   for (const [name, def] of Object.entries(scenario.services ?? {})) {

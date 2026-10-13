@@ -264,6 +264,134 @@ func (c *Client) Upsert(in Input) *wattdb.Upsert[Doc, Partial] {
 
 var inputOrder = []string{"docId", "code", "t", "count", "done", "kind", "status", "tags", "scores", "meta", "opts", "steps", "notes", "blob", "summary", "secret"}
 
+// BatchGet reads many items, in chunks of 100.
+func (c *Client) BatchGet(keys ...Key) *wattdb.BatchGet[Doc, Key] {
+	return wattdb.NewBatchGet(c.t, keys, Key.encode)
+}
+
+// BatchPut writes many items, in chunks of 25.
+func (c *Client) BatchPut(items ...Input) *wattdb.BatchWrite[Input] {
+	return wattdb.NewBatchPut(c.t, items, Input.encode)
+}
+
+// BatchDelete deletes many items, in chunks of 25.
+func (c *Client) BatchDelete(keys ...Key) *wattdb.BatchWrite[Key] {
+	return wattdb.NewBatchDelete(c.t, keys, Key.encode)
+}
+
+// Check is a transaction condition check on one item.
+func (c *Client) Check(k Key) *wattdb.TxCheck[Doc, Partial] {
+	return c.t.Check(k.encode())
+}
+
+// Filter selects items by attribute values for Find and Match; nil fields
+// are ignored. It's the Partial type, so composites read back by Conv can
+// be passed in.
+type Filter = Partial
+
+// Find reads the items with the given attributes through the access
+// pattern that fits best, or a scan when none does.
+func (c *Client) Find(f Filter) *wattdb.Find[Doc, Partial] {
+	return c.t.Find(f.facets())
+}
+
+// Match is Find, also filtering on every given attribute.
+func (c *Client) Match(f Filter) *wattdb.Find[Doc, Partial] {
+	return c.t.Match(f.facets())
+}
+
+// Parse decodes a raw item read some other way, such as a stream record.
+// wattdb.ErrNotFound means it isn't a doc item.
+func (c *Client) Parse(item map[string]ddbtypes.AttributeValue) (Doc, error) {
+	return c.t.Parse(item)
+}
+
+// Conv converts between composite attributes, keys and cursors.
+func (c *Client) Conv() Conv { return Conv{c.t.Conv()} }
+
+// Conv converts between composite attributes, keys and cursors across
+// every index; its access-pattern methods narrow it to one index.
+type Conv struct{ c wattdb.Conv[Doc, Partial] }
+
+// KeysFromComposite builds every index's keys that f's composites allow.
+func (v Conv) KeysFromComposite(f Filter, strict wattdb.Strict) (map[string]ddbtypes.AttributeValue, error) {
+	m, err := f.encode()
+	return v.c.KeysFromComposite(m, err, strict)
+}
+
+// CursorFromComposite builds a cursor from every composite.
+func (v Conv) CursorFromComposite(f Filter) (wattdb.Cursor, error) {
+	m, err := f.encode()
+	return v.c.CursorFromComposite(m, err)
+}
+
+// CursorFromKeys encodes keys as a cursor.
+func (v Conv) CursorFromKeys(keys map[string]ddbtypes.AttributeValue) (wattdb.Cursor, error) {
+	return v.c.CursorFromKeys(keys)
+}
+
+// KeysFromCursor decodes a cursor's keys.
+func (v Conv) KeysFromCursor(c wattdb.Cursor) (map[string]ddbtypes.AttributeValue, error) {
+	return v.c.KeysFromCursor(c)
+}
+
+// CompositeFromKeys reads the composites back out of every index's keys.
+func (v Conv) CompositeFromKeys(keys map[string]ddbtypes.AttributeValue) (Partial, error) {
+	return v.c.CompositeFromKeys(keys)
+}
+
+// CompositeFromCursor reads the composites back out of a cursor.
+func (v Conv) CompositeFromCursor(c wattdb.Cursor) (Partial, error) {
+	return v.c.CompositeFromCursor(c)
+}
+
+// Primary narrows the conversions to the primary access pattern.
+func (v Conv) Primary() IndexConv { return IndexConv{v.c, "primary"} }
+
+// IndexConv converts between composites, keys and cursors of one access
+// pattern (and the table's keys).
+type IndexConv struct {
+	c       wattdb.Conv[Doc, Partial]
+	pattern string
+}
+
+// KeysFromComposite builds the index's keys from f's composites.
+func (v IndexConv) KeysFromComposite(f Filter, strict wattdb.Strict) (map[string]ddbtypes.AttributeValue, error) {
+	m, err := f.encode()
+	return v.c.IndexKeysFromComposite(v.pattern, m, err, strict)
+}
+
+// CursorFromComposite builds the index's cursor from every composite.
+func (v IndexConv) CursorFromComposite(f Filter) (wattdb.Cursor, error) {
+	m, err := f.encode()
+	return v.c.IndexCursorFromComposite(v.pattern, m, err)
+}
+
+// CursorFromKeys encodes the index's keys as a cursor.
+func (v IndexConv) CursorFromKeys(keys map[string]ddbtypes.AttributeValue) (wattdb.Cursor, error) {
+	return v.c.IndexCursorFromKeys(v.pattern, keys)
+}
+
+// CompositeFromKeys reads the composites back out of the index's keys.
+func (v IndexConv) CompositeFromKeys(keys map[string]ddbtypes.AttributeValue) (Partial, error) {
+	return v.c.IndexCompositeFromKeys(v.pattern, keys)
+}
+
+// CompositeFromCursor reads the composites back out of the index's cursor.
+func (v IndexConv) CompositeFromCursor(c wattdb.Cursor) (Partial, error) {
+	return v.c.IndexCompositeFromCursor(v.pattern, c)
+}
+
+// Definition returns the compiled entity; generated collection clients
+// use it.
+func Definition() (*wattdb.EntityDef, error) { return entityDef() }
+
+// Facets encodes f's set attributes; generated collection clients use it.
+func Facets(f Filter) ([]wattdb.Facet, error) { return f.facets() }
+
+// Decode decodes a stored item; generated collection clients use it.
+func Decode(m map[string]ddbtypes.AttributeValue) (Doc, error) { return decodeDoc(m) }
+
 // Scan reads every doc item in the table.
 func (c *Client) Scan() *wattdb.Scan[Doc, Partial] { return c.t.Scan("") }
 
@@ -513,6 +641,170 @@ func (in Input) encode() (map[string]ddbtypes.AttributeValue, error) {
 		}
 	}
 	return m, nil
+}
+
+func (p Partial) encode() (map[string]ddbtypes.AttributeValue, error) {
+	m := map[string]ddbtypes.AttributeValue{}
+	if p.DocID != nil {
+		av, err := wire.EncodeString(*p.DocID)
+		if err != nil {
+			return nil, fmt.Errorf("docId: %w", err)
+		}
+		if av != nil {
+			m["docId"] = av
+		}
+	}
+	if p.Code != nil {
+		av, err := wire.EncodeString(*p.Code)
+		if err != nil {
+			return nil, fmt.Errorf("code: %w", err)
+		}
+		if av != nil {
+			m["code"] = av
+		}
+	}
+	if p.Title != nil {
+		av, err := wire.EncodeString(*p.Title)
+		if err != nil {
+			return nil, fmt.Errorf("t: %w", err)
+		}
+		if av != nil {
+			m["t"] = av
+		}
+	}
+	if p.Count != nil {
+		av, err := wire.EncodeInt[int](*p.Count)
+		if err != nil {
+			return nil, fmt.Errorf("count: %w", err)
+		}
+		if av != nil {
+			m["count"] = av
+		}
+	}
+	if p.Done != nil {
+		av, err := wire.EncodeBool(*p.Done)
+		if err != nil {
+			return nil, fmt.Errorf("done: %w", err)
+		}
+		if av != nil {
+			m["done"] = av
+		}
+	}
+	if p.Kind != nil {
+		av, err := wire.EncodeEnum[KindEnum](*p.Kind)
+		if err != nil {
+			return nil, fmt.Errorf("kind: %w", err)
+		}
+		if av != nil {
+			m["kind"] = av
+		}
+	}
+	if p.Status != nil {
+		av, err := wire.EncodeString(*p.Status)
+		if err != nil {
+			return nil, fmt.Errorf("status: %w", err)
+		}
+		if av != nil {
+			m["status"] = av
+		}
+	}
+	if p.Tags != nil {
+		av, err := wire.EncodeStringSet[string](p.Tags)
+		if err != nil {
+			return nil, fmt.Errorf("tags: %w", err)
+		}
+		if av != nil {
+			m["tags"] = av
+		}
+	}
+	if p.Scores != nil {
+		av, err := wire.EncodeNumberSet[float64](p.Scores)
+		if err != nil {
+			return nil, fmt.Errorf("scores: %w", err)
+		}
+		if av != nil {
+			m["scores"] = av
+		}
+	}
+	if p.Meta != nil {
+		av, err := encodeMetaMap(*p.Meta)
+		if err != nil {
+			return nil, fmt.Errorf("meta: %w", err)
+		}
+		if av != nil {
+			m["meta"] = av
+		}
+	}
+	if p.Opts != nil {
+		av, err := encodeOptsMap(*p.Opts)
+		if err != nil {
+			return nil, fmt.Errorf("opts: %w", err)
+		}
+		if av != nil {
+			m["opts"] = av
+		}
+	}
+	if p.Steps != nil {
+		av, err := wire.ListEncoder[StepMap](encodeStepMap)(p.Steps)
+		if err != nil {
+			return nil, fmt.Errorf("steps: %w", err)
+		}
+		if av != nil {
+			m["steps"] = av
+		}
+	}
+	if p.Notes != nil {
+		av, err := wire.ListEncoder[string](wire.EncodeString)(p.Notes)
+		if err != nil {
+			return nil, fmt.Errorf("notes: %w", err)
+		}
+		if av != nil {
+			m["notes"] = av
+		}
+	}
+	if p.Blob != nil {
+		av, err := wire.EncodeAny(p.Blob)
+		if err != nil {
+			return nil, fmt.Errorf("blob: %w", err)
+		}
+		if av != nil {
+			m["blob"] = av
+		}
+	}
+	if p.Summary != nil {
+		av, err := wire.EncodeString(*p.Summary)
+		if err != nil {
+			return nil, fmt.Errorf("summary: %w", err)
+		}
+		if av != nil {
+			m["summary"] = av
+		}
+	}
+	if p.Secret != nil {
+		av, err := wire.EncodeString(*p.Secret)
+		if err != nil {
+			return nil, fmt.Errorf("secret: %w", err)
+		}
+		if av != nil {
+			m["secret"] = av
+		}
+	}
+	return m, nil
+}
+
+// facets lists p's set attributes in definition order.
+func (p Partial) facets() ([]wattdb.Facet, error) {
+	m, err := p.encode()
+	if err != nil {
+		return nil, err
+	}
+	var out []wattdb.Facet
+	for _, f := range inputOrder {
+		if av, ok := m[f]; ok {
+			out = append(out, wattdb.Facet{Name: f, Value: av})
+		}
+	}
+	return out, nil
 }
 
 func (k Key) encode() (map[string]ddbtypes.AttributeValue, error) {

@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/outboundani/wattdb/internal/model"
@@ -45,6 +46,10 @@ type Query struct {
 	err    error
 	// provided lists the sk composites given, for "is" fulfilment.
 	provided []string
+	// coll is set for collection queries; filterModel then merges the
+	// members' attributes for filters.
+	coll        *collection
+	filterModel *model.Model
 }
 
 func (q *Query) fail(err error) *Query {
@@ -210,7 +215,11 @@ func (q *Query) Where(c Cond) *Query {
 	if q.err != nil {
 		return q
 	}
-	w := &Write{m: q.m, cond: q.filter}
+	m := q.m
+	if q.filterModel != nil {
+		m = q.filterModel
+	}
+	w := &Write{m: m, cond: q.filter}
 	expr, err := w.renderCond(c)
 	if err != nil {
 		return q.fail(err)
@@ -302,7 +311,7 @@ func (q *Query) Build(table string, opt QueryOptions) (*QueryRequest, error) {
 					found++
 				}
 			}
-			if q.ix.Type == model.Clustered && found < len(q.ix.SK.Composites) && !opt.IgnoreOwnership {
+			if q.coll == nil && q.ix.Type == model.Clustered && found < len(q.ix.SK.Composites) && !opt.IgnoreOwnership {
 				q.filter.unsafeSet(false, "eq", q.m.Identifiers.Entity, q.m.Entity)
 				q.filter.unsafeSet(false, "eq", q.m.Identifiers.Version, q.m.Version)
 			}
@@ -321,13 +330,27 @@ func (q *Query) Build(table string, opt QueryOptions) (*QueryRequest, error) {
 	for k, v := range q.filter.values {
 		values[k] = v
 	}
+	custom := ""
+	if q.coll != nil && !opt.IgnoreOwnership {
+		es, expr := q.collectionFilter()
+		custom = expr
+		for _, k := range es.nameOrder {
+			names.set(k, es.names[k])
+		}
+		for k, v := range es.values {
+			values[k] = v
+		}
+	}
 	var err error
 	if q.scan {
 		r.Target = "Scan"
 		err = q.buildScan(r, names, values)
+	} else if q.ix.Type == model.Composite {
+		r.Target = "Query"
+		err = q.buildComposite(r, names, values, opt, custom)
 	} else {
 		r.Target = "Query"
-		err = q.buildQuery(r, names, values)
+		err = q.buildQuery(r, names, values, custom)
 	}
 	if err != nil {
 		return nil, err
@@ -359,7 +382,7 @@ func (q *Query) Build(table string, opt QueryOptions) (*QueryRequest, error) {
 	return r, nil
 }
 
-func (q *Query) buildQuery(r *QueryRequest, names *orderedNames, values map[string]any) error {
+func (q *Query) buildQuery(r *QueryRequest, names *orderedNames, values map[string]any, custom string) error {
 	ix := q.ix
 	sk1, sk2 := q.consolidate()
 	var keys IndexKeys
@@ -367,7 +390,10 @@ func (q *Query) buildQuery(r *QueryRequest, names *orderedNames, values map[stri
 	if q.typ == QueryIs {
 		keys, err = indexKeys(q.m, ix, q.pk, []Attrs{sk1, sk2}, keyOptions{})
 	} else {
-		keys, err = indexKeys(q.m, ix, q.pk, []Attrs{sk1, sk2}, keyOptions{excludeLabelTail: true})
+		keys, err = indexKeys(q.m, ix, q.pk, []Attrs{sk1, sk2}, keyOptions{
+			excludeLabelTail: true,
+			excludePostfix:   q.coll != nil && ix.Type == model.Clustered,
+		})
 	}
 	if err != nil {
 		return err
@@ -384,6 +410,9 @@ func (q *Query) buildQuery(r *QueryRequest, names *orderedNames, values map[stri
 	condition := "#pk = :pk"
 	inclusive := func(is bool) {
 		v := sk(0)
+		if q.typ == queryCollection {
+			v = q.coll.sk
+		}
 		if ix.HasSK && (isNumber(v) || (isString(v) && v.(string) != "")) {
 			names.set("#sk1", ix.SK.Field)
 			values[":sk1"] = v
@@ -403,7 +432,7 @@ func (q *Query) buildQuery(r *QueryRequest, names *orderedNames, values map[stri
 			}
 		}
 		inclusive(fulfilled)
-	case QueryBegins:
+	case QueryBegins, queryCollection, queryClusteredCollection:
 		inclusive(false)
 	case QueryBetween:
 		names.set("#sk1", ix.SK.Field)
@@ -417,10 +446,151 @@ func (q *Query) buildQuery(r *QueryRequest, names *orderedNames, values map[stri
 		condition += " and #sk1 " + op + " :sk1"
 	}
 	r.Params["KeyConditionExpression"] = condition
-	if f := q.filter.expression; f != "" {
+	if f := joinFilters(custom, q.filter.expression); f != "" {
 		r.Params["FilterExpression"] = f
 	}
 	return nil
+}
+
+func joinFilters(exprs ...string) string {
+	var out []string
+	for _, e := range exprs {
+		if e = strings.TrimSpace(e); e != "" {
+			out = append(out, e)
+		}
+	}
+	return strings.Join(out, " AND ")
+}
+
+// buildComposite mirrors _compositeQueryParams: key conditions on the
+// composite attributes themselves.
+func (q *Query) buildComposite(r *QueryRequest, names *orderedNames, values map[string]any, opt QueryOptions, custom string) error {
+	ix := q.ix
+	es := newExprState("k_")
+	var exprs []string
+	field := func(name string) string {
+		if a, ok := q.m.Attribute(name); ok {
+			return a.Field
+		}
+		return name
+	}
+	eq := func(name string, v any) {
+		ref := es.setName(nil, name, field(name)).expression
+		exprs = append(exprs, ref+" = "+es.setValue(name, v))
+	}
+	if q.typ == QueryBetween {
+		for _, name := range ix.PK.Composites {
+			eq(name, q.pk[name])
+		}
+		is, start, end := Attrs{}, Attrs{}, Attrs{}
+		for _, e := range q.sk {
+			switch e.typ {
+			case QueryIs:
+				is = entriesToAttrs(e.facets)
+			case QueryBetween:
+				start = entriesToAttrs(e.facets)
+			case queryAnd:
+				end = entriesToAttrs(e.facets)
+			}
+		}
+		last := ""
+		for _, name := range ix.SK.Composites {
+			_, inIs := is[name]
+			_, inStart := start[name]
+			_, inEnd := end[name]
+			switch {
+			case inIs, inStart && inEnd:
+				last = name
+			case inStart || inEnd:
+				return fmt.Errorf("between on a composite index needs both a start and an end value for %s", name)
+			}
+			if !inIs && !inStart && !inEnd {
+				break
+			}
+		}
+		for _, name := range ix.SK.Composites {
+			_, inIs := is[name]
+			_, inStart := start[name]
+			_, inEnd := end[name]
+			switch {
+			case name == last:
+				ref := es.setName(nil, name, field(name)).expression
+				lo := es.setValue(name, start[name])
+				hi := es.setValue(name, end[name])
+				exprs = append(exprs, ref+" BETWEEN "+lo+" AND "+hi)
+			case inIs:
+				eq(name, is[name])
+			case inStart && inEnd:
+				if !sameValue(start[name], end[name]) {
+					return fmt.Errorf("between on a composite index needs equal start and end values for %s until the last sort key attribute", name)
+				}
+				eq(name, start[name])
+			}
+		}
+	} else {
+		sk1, _ := q.consolidate()
+		type part struct {
+			sk    bool
+			name  string
+			value any
+		}
+		var parts []part
+		for i, name := range ix.Composites() {
+			isSK := i >= len(ix.PK.Composites)
+			v, ok := q.pk[name]
+			if isSK {
+				v, ok = sk1[name]
+			}
+			if !ok {
+				break
+			}
+			parts = append(parts, part{isSK, name, v})
+		}
+		for i, p := range parts {
+			if !p.sk || i < len(parts)-1 {
+				eq(p.name, p.value)
+				continue
+			}
+			ref := es.setName(nil, p.name, field(p.name)).expression
+			val := es.setValue(p.name, p.value)
+			switch q.typ {
+			case QueryIs, queryCollection, queryClusteredCollection:
+				exprs = append(exprs, ref+" = "+val)
+			case QueryBegins:
+				exprs = append(exprs, "begins_with("+ref+", "+val+")")
+			case QueryGt, QueryGte, QueryLt, QueryLte:
+				op := map[QueryType]string{QueryGt: ">", QueryGte: ">=", QueryLt: "<", QueryLte: "<="}[q.typ]
+				exprs = append(exprs, ref+" "+op+" "+val)
+			}
+		}
+	}
+	identifiers := ""
+	if !opt.IgnoreOwnership && custom == "" {
+		identifiers = identifierExpr(q.m, es, "")
+	}
+	for _, k := range es.nameOrder {
+		names.set(k, es.names[k])
+	}
+	for k, v := range es.values {
+		values[k] = v
+	}
+	r.Params["KeyConditionExpression"] = strings.Join(exprs, " AND ")
+	if f := joinFilters(custom, q.filter.expression, identifiers); f != "" {
+		r.Params["FilterExpression"] = f
+	}
+	return nil
+}
+
+// identifierExpr mirrors applyIdentifierExpressionState.
+func identifierExpr(m *model.Model, es *exprState, alias string) string {
+	if alias == "" {
+		alias = m.Entity
+	}
+	e := es.setName(nil, m.Identifiers.Entity, m.Identifiers.Entity).expression
+	v := es.setName(nil, m.Identifiers.Version, m.Identifiers.Version).expression
+	ev := es.setValue(m.Identifiers.Entity+"_"+alias, m.Entity)
+	vv := es.setValue(m.Identifiers.Version+"_"+alias, m.Version)
+	return "(" + e + " = " + ev + " AND " + v + " = " + vv + ")"
 }
 
 func isNumber(v any) bool { _, ok := v.(Number); return ok }
@@ -459,7 +629,13 @@ func (q *Query) applyProjection(r *QueryRequest, names *orderedNames, opt QueryO
 	if len(opt.Attributes) == 0 {
 		return
 	}
-	table := q.m.TableIndex()
+	r.Params["ProjectionExpression"] = projection(q.m, names, opt.Attributes, !opt.Raw && opt.Exec && !opt.IgnoreOwnership)
+}
+
+// projection renders a ProjectionExpression over the existing names, the
+// table key fields, the attributes and optionally the identifiers.
+func projection(m *model.Model, names *orderedNames, attributes []string, identifiers bool) string {
+	table := m.TableIndex()
 	seen := map[string]string{}
 	var order []string
 	inOrder := map[string]bool{}
@@ -487,21 +663,33 @@ func (q *Query) applyProjection(r *QueryRequest, names *orderedNames, opt QueryO
 	if !hasSK {
 		set(formatExpressionName(table.SK.Field, seen), table.SK.Field)
 	}
-	for _, name := range opt.Attributes {
+	for _, name := range attributes {
 		field := name
-		if a, ok := q.m.Attribute(name); ok {
+		if a, ok := m.Attribute(name); ok {
 			field = a.Field
 		}
 		set(formatExpressionName(field, seen), field)
 	}
-	if !opt.Raw && opt.Exec && !opt.IgnoreOwnership {
-		set(q.m.Identifiers.Entity, q.m.Identifiers.Entity)
-		set(q.m.Identifiers.Version, q.m.Identifiers.Version)
+	if identifiers {
+		set(m.Identifiers.Entity, m.Identifiers.Entity)
+		set(m.Identifiers.Version, m.Identifiers.Version)
 	}
 	refs := make([]string, len(order))
 	for i, k := range order {
 		names.set("#"+k, seen[k])
 		refs[i] = "#" + k
 	}
-	r.Params["ProjectionExpression"] = strings.Join(refs, ", ")
+	return strings.Join(refs, ", ")
+}
+
+// sameValue mirrors JS strict equality on composite values.
+func sameValue(a, b any) bool {
+	an, aok := a.(Number)
+	bn, bok := b.(Number)
+	if aok && bok {
+		x, _ := strconv.ParseFloat(string(an), 64)
+		y, _ := strconv.ParseFloat(string(bn), 64)
+		return x == y
+	}
+	return a == b
 }

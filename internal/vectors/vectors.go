@@ -21,6 +21,8 @@ type Vector struct {
 	Table       string
 	// Entities are the scenario's entity schemas, in order.
 	Entities []Entity
+	// Services maps service names to their entity aliases, in order.
+	Services map[string][]string
 	Cases    []Case
 }
 
@@ -146,11 +148,14 @@ func Load(path string) (*Vector, error) {
 
 func parse(data []byte) (*Vector, error) {
 	var raw struct {
-		ElectroDB   string            `json:"electrodb"`
-		Description string            `json:"description"`
-		Table       string            `json:"table"`
-		Entities    json.RawMessage   `json:"entities"`
-		Cases       []json.RawMessage `json:"cases"`
+		ElectroDB   string          `json:"electrodb"`
+		Description string          `json:"description"`
+		Table       string          `json:"table"`
+		Entities    json.RawMessage `json:"entities"`
+		Services    map[string]struct {
+			Entities []string `json:"entities"`
+		} `json:"services"`
+		Cases []json.RawMessage `json:"cases"`
 	}
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, err
@@ -158,6 +163,12 @@ func parse(data []byte) (*Vector, error) {
 	v := &Vector{ElectroDB: raw.ElectroDB, Description: raw.Description, Table: raw.Table}
 	if v.Table == "" {
 		v.Table = "table"
+	}
+	for name, svc := range raw.Services {
+		if v.Services == nil {
+			v.Services = map[string][]string{}
+		}
+		v.Services[name] = svc.Entities
 	}
 	if len(raw.Entities) > 0 {
 		members, err := objectMembers(raw.Entities)
@@ -197,17 +208,11 @@ func parseCase(data json.RawMessage) (Case, error) {
 	if err := json.Unmarshal(data, &extra); err != nil {
 		return c, err
 	}
-	for _, step := range extra.Chain {
-		if len(step) == 0 {
-			return c, fmt.Errorf("case %q: empty chain step", c.Name)
-		}
-		var s Step
-		if err := json.Unmarshal(step[0], &s.Method); err != nil {
-			return c, fmt.Errorf("case %q: %w", c.Name, err)
-		}
-		s.Args = step[1:]
-		c.Chain = append(c.Chain, s)
+	chain, err := ParseChain(extra.Chain)
+	if err != nil {
+		return c, fmt.Errorf("case %q: %w", c.Name, err)
 	}
+	c.Chain = chain
 	if p := bytes.TrimSpace(extra.Params); len(p) > 0 && p[0] == '{' {
 		c.ParamsOptions = p
 	}
@@ -235,6 +240,23 @@ func parseCase(data json.RawMessage) (Case, error) {
 		c.ParamsError = e.Error
 	}
 	return c, nil
+}
+
+// ParseChain parses chain steps, each [method, args...].
+func ParseChain(steps [][]json.RawMessage) ([]Step, error) {
+	var out []Step
+	for _, step := range steps {
+		if len(step) == 0 {
+			return nil, fmt.Errorf("empty chain step")
+		}
+		var s Step
+		if err := json.Unmarshal(step[0], &s.Method); err != nil {
+			return nil, err
+		}
+		s.Args = step[1:]
+		out = append(out, s)
+	}
+	return out, nil
 }
 
 // Requests returns the case's recorded requests: the params when recorded,

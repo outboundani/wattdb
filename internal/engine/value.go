@@ -144,3 +144,6 @@ func jsNumber(v any) (Number, bool) {
 	}
 	return "", false
 }
+
+// KeyString renders a key value as text, for matching keys.
+func KeyString(v any) string { return keyString(v) }

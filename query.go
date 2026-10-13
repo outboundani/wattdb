@@ -64,6 +64,7 @@ type Facet struct {
 type reader[E, P any] struct {
 	t             *Table[E, P]
 	scan          bool
+	find          findMode
 	accessPattern string
 	facets        []Facet
 	sortKey       func(*engine.Query, func(types.AttributeValue) any)
@@ -92,13 +93,18 @@ func (r *reader[E, P]) build(exec bool) (*engine.QueryRequest, error) {
 	}
 	m := r.t.def.model
 	var q *engine.Query
-	if r.scan {
+	entries := make([]engine.Entry, len(r.facets))
+	for i, f := range r.facets {
+		entries[i] = engine.Entry{Path: f.Name, Value: engineValue(f.Value)}
+	}
+	switch {
+	case r.find == findFind:
+		q = engine.NewFind(m, entries)
+	case r.find == findMatch:
+		q = engine.NewMatch(m, entries)
+	case r.scan:
 		q = engine.NewScan(m, r.accessPattern)
-	} else {
-		entries := make([]engine.Entry, len(r.facets))
-		for i, f := range r.facets {
-			entries[i] = engine.Entry{Path: f.Name, Value: engineValue(f.Value)}
-		}
+	default:
 		q = engine.NewQuery(m, r.accessPattern, entries)
 		if r.sortKey != nil {
 			r.sortKey(q, engineValue)
@@ -116,7 +122,14 @@ func (r *reader[E, P]) build(exec bool) (*engine.QueryRequest, error) {
 	if r.table != "" {
 		opts.Table = r.table
 	}
-	return q.Build(r.t.table, opts)
+	req, err := q.Build(r.t.table, opts)
+	if err != nil {
+		return nil, err
+	}
+	if r.find != findNone {
+		r.scan = req.Target == "Scan"
+	}
+	return req, nil
 }
 
 func (r *reader[E, P]) runner(ctx context.Context) *sdkRunner {

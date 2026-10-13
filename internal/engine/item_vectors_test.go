@@ -15,9 +15,10 @@ import (
 )
 
 type vectorCase struct {
-	name string
-	m    *model.Model
-	c    vectors.Case
+	name  string
+	m     *model.Model
+	c     vectors.Case
+	table string
 }
 
 // vectorCases loads every vector case whose entity builds.
@@ -40,7 +41,7 @@ func vectorCases(t *testing.T) []vectorCase {
 		for _, c := range v.Cases {
 			if m := models[c.Entity]; m != nil && len(c.Chain) > 0 {
 				name := fmt.Sprintf("%s/%s", strings.TrimSuffix(filepath.Base(v.File), ".json"), c.Name)
-				out = append(out, vectorCase{name, m, c})
+				out = append(out, vectorCase{name, m, c, v.Table})
 			}
 		}
 	}
@@ -111,8 +112,8 @@ func TestReadFormattingMatchesVectors(t *testing.T) {
 		if vc.c.Go == nil || vc.c.Go.Result == nil || len(vc.c.Responses) == 0 {
 			continue
 		}
-		if method != "get" {
-			continue // queries and scans are covered by TestQueriesMatchVectors
+		if method != "get" || !isObject(vc.c.Chain[0].Args[0]) {
+			continue // queries, scans and batches have their own tests
 		}
 		t.Run(vc.name, func(t *testing.T) {
 			var opts struct {

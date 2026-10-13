@@ -58,12 +58,19 @@ func fileBase(p string) string { return p[strings.LastIndex(p, "/")+1:] }
 // buildWrite replays a case's chain on the engine builder.
 func buildWrite(t *testing.T, m *model.Model, c vectors.Case) *engine.Write {
 	t.Helper()
-	first := c.Chain[0]
+	return buildWriteChain(t, m, c.Chain)
+}
+
+func buildWriteChain(t *testing.T, m *model.Model, chain []vectors.Step) *engine.Write {
+	t.Helper()
+	first := chain[0]
 	attrs := mustAttrs(t, first.Args[0])
 	var w *engine.Write
 	switch first.Method {
 	case "get":
 		w = engine.NewGet(m, attrs)
+	case "check":
+		w = engine.NewCheck(m, attrs)
 	case "put", "create":
 		w = engine.NewPut(m, attrs, first.Method == "create")
 	case "delete", "remove":
@@ -77,7 +84,7 @@ func buildWrite(t *testing.T, m *model.Model, c vectors.Case) *engine.Write {
 		}
 		w = engine.NewUpsert(m, attrs, keys)
 	}
-	for _, step := range c.Chain[1:] {
+	for _, step := range chain[1:] {
 		switch step.Method {
 		case "set", "add", "subtract", "append", "delete", "ifNotExists", "composite":
 			entries := entriesOf(t, step.Args[0])

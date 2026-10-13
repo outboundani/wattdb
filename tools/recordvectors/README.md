@@ -62,7 +62,8 @@ JSON protocol exactly as in production. The transport:
 
 `chain` is a list of `[method, ...args]` calls starting from the entity or service. A dotted method
 such as `query.byRole` walks properties first. A step with no arguments may name a property instead
-of a method, as in `["scan"]`. If the chain doesn't end in something with `.params()`/`.go()` (for
+of a method, as in `["scan"]`. Each entity also has `conversions` (ElectroDB's `createConversions(entity)`), e.g.
+`["conversions.fromComposite.toKeys", {...}]`. If the chain doesn't end in something with `.params()`/`.go()` (for
 example `parse` or `conversions.*`), its return value is recorded as `recorded.value`.
 
 ### Named callbacks

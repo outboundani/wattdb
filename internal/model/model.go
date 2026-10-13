@@ -270,3 +270,39 @@ func (m *Model) indexPaths() {
 		walk(a)
 	}
 }
+
+// Merged returns a copy of the first model whose attributes are the union
+// of all the models' (the first definition of a name wins), as a
+// collection's filters see them.
+func Merged(models ...*Model) *Model {
+	out := *models[0]
+	out.attrs = map[string]*Attribute{}
+	out.Attributes = nil
+	for _, m := range models {
+		for _, a := range m.Attributes {
+			if _, ok := out.attrs[a.Name]; !ok {
+				out.attrs[a.Name] = a
+				out.Attributes = append(out.Attributes, a)
+			}
+		}
+	}
+	out.indexPaths()
+	return &out
+}
+
+// CollectionIndex returns the index defining the named collection, and the
+// collection's sub-collection path (the collection names up to it).
+func (m *Model) CollectionIndex(name string) (*Index, []string, bool) {
+	for _, ix := range m.Indexes {
+		for i, c := range ix.Collections {
+			if c != name {
+				continue
+			}
+			if !ix.SubCollections {
+				return ix, []string{c}, true
+			}
+			return ix, ix.Collections[:i+1], true
+		}
+	}
+	return nil, nil, false
+}

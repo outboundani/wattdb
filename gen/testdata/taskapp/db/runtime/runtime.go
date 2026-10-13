@@ -9,6 +9,8 @@ package runtime
 
 import (
 	"example.com/taskapp/db/doc"
+	"example.com/taskapp/db/member"
+	"example.com/taskapp/db/project"
 	"example.com/taskapp/db/task"
 	"example.com/taskapp/db/user"
 	schema0 "example.com/taskapp/schema/taskapp"
@@ -16,6 +18,8 @@ import (
 
 func init() {
 	doc.Register(schema0.Doc{})
+	member.Register(schema0.Member{})
+	project.Register(schema0.Project{})
 	task.Register(schema0.Task{})
 	user.Register(schema0.User{})
 }

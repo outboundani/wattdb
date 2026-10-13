@@ -1,0 +1,3491 @@
+{
+  "electrodb": "3.9.3",
+  "description": "Multi-item and advanced features: batches (chunking, unprocessed, order), transactions (write, check, canceled, get), collections (isolated, clustered, sub-collections, pages), a multi-attribute index, find/match, conversions and parse.",
+  "entities": {
+    "member": {
+      "model": {"entity":"member","service":"taskapp","version":"1"},
+      "attributes": {
+        "orgId": {"type":"string","required":true},
+        "memberId": {"type":"string","required":true},
+        "name": {"type":"string"},
+        "status": {"type":["active","away"],"required":true,"default":"active"},
+        "visits": {"type":"number"}
+      },
+      "indexes": {
+        "primary": {
+          "pk": {"field":"pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"sk","composite":["memberId"],"facets":["memberId"]}
+        },
+        "team": {
+          "index": "gsi1",
+          "collection": "team",
+          "pk": {"field":"gsi1pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"gsi1sk","composite":["memberId"],"facets":["memberId"]}
+        },
+        "board": {
+          "index": "gsi2",
+          "type": "clustered",
+          "collection": "board",
+          "pk": {"field":"gsi2pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"gsi2sk","composite":["status","memberId"],"facets":["status","memberId"]}
+        },
+        "org": {
+          "index": "gsi3",
+          "collection": ["org","orgMembers"],
+          "pk": {"field":"gsi3pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"gsi3sk","composite":["name"],"facets":["name"]}
+        }
+      }
+    },
+    "project": {
+      "model": {"entity":"project","service":"taskapp","version":"1"},
+      "attributes": {
+        "orgId": {"type":"string","required":true},
+        "projectId": {"type":"string","required":true},
+        "name": {"type":"string"},
+        "status": {"type":["active","away"],"required":true,"default":"active"},
+        "owner": {"type":"string"},
+        "due": {"type":"string"}
+      },
+      "indexes": {
+        "primary": {
+          "pk": {"field":"pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"sk","composite":["projectId"],"facets":["projectId"]}
+        },
+        "team": {
+          "index": "gsi1",
+          "collection": "team",
+          "pk": {"field":"gsi1pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"gsi1sk","composite":["projectId"],"facets":["projectId"]}
+        },
+        "board": {
+          "index": "gsi2",
+          "type": "clustered",
+          "collection": "board",
+          "pk": {"field":"gsi2pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"gsi2sk","composite":["status","projectId"],"facets":["status","projectId"]}
+        },
+        "org": {
+          "index": "gsi3",
+          "collection": ["org","orgProjects"],
+          "pk": {"field":"gsi3pk","composite":["orgId"],"facets":["orgId"]},
+          "sk": {"field":"gsi3sk","composite":["name"],"facets":["name"]}
+        },
+        "byOwner": {
+          "index": "gsi4",
+          "type": "composite",
+          "pk": {"composite":["orgId","owner"],"facets":["orgId","owner"]},
+          "sk": {"composite":["due","projectId"],"facets":["due","projectId"]}
+        }
+      }
+    }
+  },
+  "services": {"taskapp":{"entities":["member","project"]}},
+  "cases": [
+    {
+      "name": "batch get",
+      "entity": "member",
+      "chain": [
+        [
+          "get",
+          [
+            {"orgId":"O1","memberId":"M1"},
+            {"orgId":"O1","memberId":"M2"},
+            {"orgId":"O1","memberId":"M3"}
+          ]
+        ]
+      ],
+      "responses": [
+        {
+          "Responses": {
+            "table": [
+              {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M2"},
+                "name": {"S":"Bo"},
+                "status": {"S":"away"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$member_1#memberid_m2"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_away#memberid_m2#member_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgmembers#member_1#name_bo"},
+                "__edb_e__": {"S":"member"},
+                "__edb_v__": {"S":"1"}
+              },
+              {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M1"},
+                "name": {"S":"Ada"},
+                "status": {"S":"active"},
+                "visits": {"N":"3"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$member_1#memberid_m1"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                "__edb_e__": {"S":"member"},
+                "__edb_v__": {"S":"1"}
+              }
+            ]
+          },
+          "UnprocessedKeys": {"table":{"Keys":[{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m3"}}]}}
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "BatchGetItem",
+            "request": {
+              "RequestItems": {
+                "table": {
+                  "Keys": [
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m3"}}
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [
+                  {
+                    "M": {
+                      "orgId": {"S":"O1"},
+                      "memberId": {"S":"M2"},
+                      "name": {"S":"Bo"},
+                      "status": {"S":"away"}
+                    }
+                  },
+                  {
+                    "M": {
+                      "orgId": {"S":"O1"},
+                      "memberId": {"S":"M1"},
+                      "name": {"S":"Ada"},
+                      "status": {"S":"active"},
+                      "visits": {"N":"3"}
+                    }
+                  }
+                ]
+              },
+              "unprocessed": {"L":[{"M":{"orgId":{"S":"o1"},"memberId":{"S":"m3"}}}]}
+            }
+          },
+          "requests": [
+            {
+              "target": "BatchGetItem",
+              "request": {
+                "RequestItems": {
+                  "table": {
+                    "Keys": [
+                      {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}},
+                      {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}},
+                      {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m3"}}
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "batch get preserving order",
+      "entity": "member",
+      "chain": [
+        [
+          "get",
+          [
+            {"orgId":"O1","memberId":"M1"},
+            {"orgId":"O1","memberId":"M3"},
+            {"orgId":"O1","memberId":"M2"}
+          ]
+        ]
+      ],
+      "params": false,
+      "go": {"preserveBatchOrder":true},
+      "responses": [
+        {
+          "Responses": {
+            "table": [
+              {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M2"},
+                "name": {"S":"Bo"},
+                "status": {"S":"away"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$member_1#memberid_m2"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_away#memberid_m2#member_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgmembers#member_1#name_bo"},
+                "__edb_e__": {"S":"member"},
+                "__edb_v__": {"S":"1"}
+              },
+              {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M1"},
+                "name": {"S":"Ada"},
+                "status": {"S":"active"},
+                "visits": {"N":"3"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$member_1#memberid_m1"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                "__edb_e__": {"S":"member"},
+                "__edb_v__": {"S":"1"}
+              }
+            ]
+          },
+          "UnprocessedKeys": {}
+        }
+      ],
+      "recorded": {
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [
+                  {
+                    "M": {
+                      "orgId": {"S":"O1"},
+                      "memberId": {"S":"M1"},
+                      "name": {"S":"Ada"},
+                      "status": {"S":"active"},
+                      "visits": {"N":"3"}
+                    }
+                  },
+                  {"NULL":true},
+                  {
+                    "M": {
+                      "orgId": {"S":"O1"},
+                      "memberId": {"S":"M2"},
+                      "name": {"S":"Bo"},
+                      "status": {"S":"away"}
+                    }
+                  }
+                ]
+              },
+              "unprocessed": {"L":[]}
+            }
+          },
+          "requests": [
+            {
+              "target": "BatchGetItem",
+              "request": {
+                "RequestItems": {
+                  "table": {
+                    "Keys": [
+                      {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}},
+                      {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m3"}},
+                      {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}}
+                    ]
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "batch get of 101 keys",
+      "entity": "member",
+      "chain": [
+        [
+          "get",
+          [
+            {"orgId":"O1","memberId":"M0"},
+            {"orgId":"O1","memberId":"M1"},
+            {"orgId":"O1","memberId":"M2"},
+            {"orgId":"O1","memberId":"M3"},
+            {"orgId":"O1","memberId":"M4"},
+            {"orgId":"O1","memberId":"M5"},
+            {"orgId":"O1","memberId":"M6"},
+            {"orgId":"O1","memberId":"M7"},
+            {"orgId":"O1","memberId":"M8"},
+            {"orgId":"O1","memberId":"M9"},
+            {"orgId":"O1","memberId":"M10"},
+            {"orgId":"O1","memberId":"M11"},
+            {"orgId":"O1","memberId":"M12"},
+            {"orgId":"O1","memberId":"M13"},
+            {"orgId":"O1","memberId":"M14"},
+            {"orgId":"O1","memberId":"M15"},
+            {"orgId":"O1","memberId":"M16"},
+            {"orgId":"O1","memberId":"M17"},
+            {"orgId":"O1","memberId":"M18"},
+            {"orgId":"O1","memberId":"M19"},
+            {"orgId":"O1","memberId":"M20"},
+            {"orgId":"O1","memberId":"M21"},
+            {"orgId":"O1","memberId":"M22"},
+            {"orgId":"O1","memberId":"M23"},
+            {"orgId":"O1","memberId":"M24"},
+            {"orgId":"O1","memberId":"M25"},
+            {"orgId":"O1","memberId":"M26"},
+            {"orgId":"O1","memberId":"M27"},
+            {"orgId":"O1","memberId":"M28"},
+            {"orgId":"O1","memberId":"M29"},
+            {"orgId":"O1","memberId":"M30"},
+            {"orgId":"O1","memberId":"M31"},
+            {"orgId":"O1","memberId":"M32"},
+            {"orgId":"O1","memberId":"M33"},
+            {"orgId":"O1","memberId":"M34"},
+            {"orgId":"O1","memberId":"M35"},
+            {"orgId":"O1","memberId":"M36"},
+            {"orgId":"O1","memberId":"M37"},
+            {"orgId":"O1","memberId":"M38"},
+            {"orgId":"O1","memberId":"M39"},
+            {"orgId":"O1","memberId":"M40"},
+            {"orgId":"O1","memberId":"M41"},
+            {"orgId":"O1","memberId":"M42"},
+            {"orgId":"O1","memberId":"M43"},
+            {"orgId":"O1","memberId":"M44"},
+            {"orgId":"O1","memberId":"M45"},
+            {"orgId":"O1","memberId":"M46"},
+            {"orgId":"O1","memberId":"M47"},
+            {"orgId":"O1","memberId":"M48"},
+            {"orgId":"O1","memberId":"M49"},
+            {"orgId":"O1","memberId":"M50"},
+            {"orgId":"O1","memberId":"M51"},
+            {"orgId":"O1","memberId":"M52"},
+            {"orgId":"O1","memberId":"M53"},
+            {"orgId":"O1","memberId":"M54"},
+            {"orgId":"O1","memberId":"M55"},
+            {"orgId":"O1","memberId":"M56"},
+            {"orgId":"O1","memberId":"M57"},
+            {"orgId":"O1","memberId":"M58"},
+            {"orgId":"O1","memberId":"M59"},
+            {"orgId":"O1","memberId":"M60"},
+            {"orgId":"O1","memberId":"M61"},
+            {"orgId":"O1","memberId":"M62"},
+            {"orgId":"O1","memberId":"M63"},
+            {"orgId":"O1","memberId":"M64"},
+            {"orgId":"O1","memberId":"M65"},
+            {"orgId":"O1","memberId":"M66"},
+            {"orgId":"O1","memberId":"M67"},
+            {"orgId":"O1","memberId":"M68"},
+            {"orgId":"O1","memberId":"M69"},
+            {"orgId":"O1","memberId":"M70"},
+            {"orgId":"O1","memberId":"M71"},
+            {"orgId":"O1","memberId":"M72"},
+            {"orgId":"O1","memberId":"M73"},
+            {"orgId":"O1","memberId":"M74"},
+            {"orgId":"O1","memberId":"M75"},
+            {"orgId":"O1","memberId":"M76"},
+            {"orgId":"O1","memberId":"M77"},
+            {"orgId":"O1","memberId":"M78"},
+            {"orgId":"O1","memberId":"M79"},
+            {"orgId":"O1","memberId":"M80"},
+            {"orgId":"O1","memberId":"M81"},
+            {"orgId":"O1","memberId":"M82"},
+            {"orgId":"O1","memberId":"M83"},
+            {"orgId":"O1","memberId":"M84"},
+            {"orgId":"O1","memberId":"M85"},
+            {"orgId":"O1","memberId":"M86"},
+            {"orgId":"O1","memberId":"M87"},
+            {"orgId":"O1","memberId":"M88"},
+            {"orgId":"O1","memberId":"M89"},
+            {"orgId":"O1","memberId":"M90"},
+            {"orgId":"O1","memberId":"M91"},
+            {"orgId":"O1","memberId":"M92"},
+            {"orgId":"O1","memberId":"M93"},
+            {"orgId":"O1","memberId":"M94"},
+            {"orgId":"O1","memberId":"M95"},
+            {"orgId":"O1","memberId":"M96"},
+            {"orgId":"O1","memberId":"M97"},
+            {"orgId":"O1","memberId":"M98"},
+            {"orgId":"O1","memberId":"M99"},
+            {"orgId":"O1","memberId":"M100"}
+          ]
+        ]
+      ],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "BatchGetItem",
+            "request": {
+              "RequestItems": {
+                "table": {
+                  "Keys": [
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m0"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m3"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m4"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m5"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m6"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m7"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m8"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m9"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m10"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m11"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m12"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m13"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m14"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m15"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m16"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m17"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m18"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m19"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m20"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m21"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m22"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m23"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m24"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m25"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m26"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m27"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m28"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m29"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m30"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m31"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m32"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m33"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m34"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m35"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m36"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m37"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m38"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m39"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m40"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m41"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m42"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m43"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m44"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m45"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m46"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m47"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m48"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m49"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m50"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m51"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m52"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m53"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m54"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m55"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m56"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m57"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m58"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m59"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m60"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m61"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m62"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m63"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m64"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m65"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m66"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m67"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m68"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m69"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m70"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m71"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m72"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m73"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m74"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m75"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m76"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m77"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m78"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m79"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m80"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m81"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m82"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m83"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m84"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m85"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m86"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m87"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m88"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m89"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m90"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m91"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m92"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m93"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m94"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m95"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m96"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m97"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m98"}},
+                    {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m99"}}
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "target": "BatchGetItem",
+            "request": {
+              "RequestItems": {
+                "table": {"Keys":[{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m100"}}]}
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "batch put",
+      "entity": "member",
+      "chain": [["put",[{"orgId":"O1","memberId":"M1","name":"Ada"},{"orgId":"O1","memberId":"M2"}]]],
+      "responses": [
+        {
+          "UnprocessedItems": {
+            "table": [
+              {
+                "PutRequest": {
+                  "Item": {
+                    "orgId": {"S":"O1"},
+                    "memberId": {"S":"M2"},
+                    "name": {"S":"Bo"},
+                    "status": {"S":"away"},
+                    "pk": {"S":"$taskapp#orgid_o1"},
+                    "sk": {"S":"$member_1#memberid_m2"},
+                    "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                    "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+                    "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                    "gsi2sk": {"S":"$board#status_away#memberid_m2#member_1"},
+                    "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                    "gsi3sk": {"S":"$org#orgmembers#member_1#name_bo"},
+                    "__edb_e__": {"S":"member"},
+                    "__edb_v__": {"S":"1"}
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "BatchWriteItem",
+            "request": {
+              "RequestItems": {
+                "table": [
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M1"},
+                        "name": {"S":"Ada"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m1"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M2"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m2"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m2#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "unprocessed": {
+                "L": [
+                  {
+                    "M": {
+                      "orgId": {"S":"O1"},
+                      "memberId": {"S":"M2"},
+                      "name": {"S":"Bo"},
+                      "status": {"S":"away"}
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "requests": [
+            {
+              "target": "BatchWriteItem",
+              "request": {
+                "RequestItems": {
+                  "table": [
+                    {
+                      "PutRequest": {
+                        "Item": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M1"},
+                          "name": {"S":"Ada"},
+                          "status": {"S":"active"},
+                          "pk": {"S":"$taskapp#orgid_o1"},
+                          "sk": {"S":"$member_1#memberid_m1"},
+                          "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                          "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                          "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                          "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                          "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                          "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                          "__edb_e__": {"S":"member"},
+                          "__edb_v__": {"S":"1"}
+                        }
+                      }
+                    },
+                    {
+                      "PutRequest": {
+                        "Item": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M2"},
+                          "status": {"S":"active"},
+                          "pk": {"S":"$taskapp#orgid_o1"},
+                          "sk": {"S":"$member_1#memberid_m2"},
+                          "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                          "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+                          "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                          "gsi2sk": {"S":"$board#status_active#memberid_m2#member_1"},
+                          "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                          "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                          "__edb_e__": {"S":"member"},
+                          "__edb_v__": {"S":"1"}
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "batch put of 26 items",
+      "entity": "member",
+      "chain": [
+        [
+          "put",
+          [
+            {"orgId":"O1","memberId":"M0"},
+            {"orgId":"O1","memberId":"M1"},
+            {"orgId":"O1","memberId":"M2"},
+            {"orgId":"O1","memberId":"M3"},
+            {"orgId":"O1","memberId":"M4"},
+            {"orgId":"O1","memberId":"M5"},
+            {"orgId":"O1","memberId":"M6"},
+            {"orgId":"O1","memberId":"M7"},
+            {"orgId":"O1","memberId":"M8"},
+            {"orgId":"O1","memberId":"M9"},
+            {"orgId":"O1","memberId":"M10"},
+            {"orgId":"O1","memberId":"M11"},
+            {"orgId":"O1","memberId":"M12"},
+            {"orgId":"O1","memberId":"M13"},
+            {"orgId":"O1","memberId":"M14"},
+            {"orgId":"O1","memberId":"M15"},
+            {"orgId":"O1","memberId":"M16"},
+            {"orgId":"O1","memberId":"M17"},
+            {"orgId":"O1","memberId":"M18"},
+            {"orgId":"O1","memberId":"M19"},
+            {"orgId":"O1","memberId":"M20"},
+            {"orgId":"O1","memberId":"M21"},
+            {"orgId":"O1","memberId":"M22"},
+            {"orgId":"O1","memberId":"M23"},
+            {"orgId":"O1","memberId":"M24"},
+            {"orgId":"O1","memberId":"M25"}
+          ]
+        ]
+      ],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "BatchWriteItem",
+            "request": {
+              "RequestItems": {
+                "table": [
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M0"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m0"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m0"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m0#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M1"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m1"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M2"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m2"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m2#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M3"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m3"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m3"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m3#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M4"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m4"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m4"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m4#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M5"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m5"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m5"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m5#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M6"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m6"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m6"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m6#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M7"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m7"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m7"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m7#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M8"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m8"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m8"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m8#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M9"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m9"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m9"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m9#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M10"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m10"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m10"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m10#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M11"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m11"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m11"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m11#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M12"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m12"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m12"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m12#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M13"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m13"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m13"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m13#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M14"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m14"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m14"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m14#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M15"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m15"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m15"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m15#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M16"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m16"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m16"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m16#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M17"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m17"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m17"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m17#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M18"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m18"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m18"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m18#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M19"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m19"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m19"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m19#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M20"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m20"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m20"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m20#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M21"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m21"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m21"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m21#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M22"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m22"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m22"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m22#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M23"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m23"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m23"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m23#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  },
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M24"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m24"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m24"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m24#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "target": "BatchWriteItem",
+            "request": {
+              "RequestItems": {
+                "table": [
+                  {
+                    "PutRequest": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M25"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m25"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m25"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m25#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "batch delete",
+      "entity": "member",
+      "chain": [["delete",[{"orgId":"O1","memberId":"M1"},{"orgId":"O1","memberId":"M2"}]]],
+      "responses": [
+        {
+          "UnprocessedItems": {
+            "table": [
+              {
+                "DeleteRequest": {"Key":{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}}}
+              }
+            ]
+          }
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "BatchWriteItem",
+            "request": {
+              "RequestItems": {
+                "table": [
+                  {
+                    "DeleteRequest": {"Key":{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}}}
+                  },
+                  {
+                    "DeleteRequest": {"Key":{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}}}
+                  }
+                ]
+              }
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"unprocessed":{"L":[{"M":{"orgId":{"S":"o1"},"memberId":{"S":"m2"}}}]}}},
+          "requests": [
+            {
+              "target": "BatchWriteItem",
+              "request": {
+                "RequestItems": {
+                  "table": [
+                    {
+                      "DeleteRequest": {"Key":{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}}}
+                    },
+                    {
+                      "DeleteRequest": {"Key":{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}}}
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "batch put with an invalid item",
+      "entity": "member",
+      "chain": [["put",[{"orgId":"O1","memberId":"M1","status":"gone"}]]],
+      "recorded": {
+        "params": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"status\". Value not found in set of acceptable values: \"active\", \"away\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "status",
+                "reason": "Invalid value type at entity path: \"status\". Value not found in set of acceptable values: \"active\", \"away\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"status\". Value not found in set of acceptable values: \"active\", \"away\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          }
+        },
+        "go": {
+          "error": {
+            "name": "ElectroValidationError",
+            "message": "Invalid value type at entity path: \"status\". Value not found in set of acceptable values: \"active\", \"away\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+            "code": 3001,
+            "fields": [
+              {
+                "field": "status",
+                "reason": "Invalid value type at entity path: \"status\". Value not found in set of acceptable values: \"active\", \"away\"",
+                "cause": {
+                  "name": "ElectroError",
+                  "message": "Invalid value type at entity path: \"status\". Value not found in set of acceptable values: \"active\", \"away\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-attribute",
+                  "code": 3001
+                }
+              }
+            ]
+          },
+          "requests": []
+        }
+      }
+    },
+    {
+      "name": "write transaction",
+      "service": "taskapp",
+      "chain": [
+        [
+          "transaction.write",
+          {
+            "$fn": "tx",
+            "args": [
+              {"entity":"member","chain":[["put",{"orgId":"O1","memberId":"M1","name":"Ada"}]]},
+              {
+                "entity": "project",
+                "chain": [
+                  ["update",{"orgId":"O1","projectId":"P1"}],
+                  ["set",{"name":"Zeus"}],
+                  ["where",{"$fn":"where","args":[["eq","status","active"]]}]
+                ]
+              },
+              {"entity":"member","chain":[["delete",{"orgId":"O1","memberId":"M2"}]]},
+              {
+                "entity": "member",
+                "chain": [
+                  ["check",{"orgId":"O1","memberId":"M3"}],
+                  ["where",{"$fn":"where","args":[["exists","name"]]}]
+                ]
+              },
+              {
+                "entity": "project",
+                "chain": [["create",{"orgId":"O1","projectId":"P2","name":"Hera"}]],
+                "commit": {"response":"all_old"}
+              }
+            ]
+          }
+        ]
+      ],
+      "params": {"token":"req-1"},
+      "go": {"token":"req-1"},
+      "recorded": {
+        "params": [
+          {
+            "target": "TransactWriteItems",
+            "request": {
+              "ClientRequestToken": "req-1",
+              "TransactItems": [
+                {
+                  "Put": {
+                    "Item": {
+                      "orgId": {"S":"O1"},
+                      "memberId": {"S":"M1"},
+                      "name": {"S":"Ada"},
+                      "status": {"S":"active"},
+                      "pk": {"S":"$taskapp#orgid_o1"},
+                      "sk": {"S":"$member_1#memberid_m1"},
+                      "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                      "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                      "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                      "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                      "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                      "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                      "__edb_e__": {"S":"member"},
+                      "__edb_v__": {"S":"1"}
+                    },
+                    "TableName": "table"
+                  }
+                },
+                {
+                  "Update": {
+                    "ConditionExpression": "#status = :status0",
+                    "ExpressionAttributeNames": {
+                      "#status": "status",
+                      "#name": "name",
+                      "#gsi3sk": "gsi3sk",
+                      "#orgId": "orgId",
+                      "#projectId": "projectId",
+                      "#__edb_e__": "__edb_e__",
+                      "#__edb_v__": "__edb_v__"
+                    },
+                    "ExpressionAttributeValues": {
+                      ":status0": {"S":"active"},
+                      ":name_u0": {"S":"Zeus"},
+                      ":gsi3sk_u0": {"S":"$org#orgprojects#project_1#name_zeus"},
+                      ":orgId_u0": {"S":"O1"},
+                      ":projectId_u0": {"S":"P1"},
+                      ":__edb_e___u0": {"S":"project"},
+                      ":__edb_v___u0": {"S":"1"}
+                    },
+                    "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$project_1#projectid_p1"}},
+                    "TableName": "table",
+                    "UpdateExpression": "SET #name = :name_u0, #gsi3sk = :gsi3sk_u0, #orgId = :orgId_u0, #projectId = :projectId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+                  }
+                },
+                {
+                  "Delete": {
+                    "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}},
+                    "TableName": "table"
+                  }
+                },
+                {
+                  "ConditionCheck": {
+                    "ConditionExpression": "attribute_exists(#name)",
+                    "ExpressionAttributeNames": {"#name":"name"},
+                    "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m3"}},
+                    "TableName": "table"
+                  }
+                },
+                {
+                  "Put": {
+                    "ConditionExpression": "attribute_not_exists(#pk) AND attribute_not_exists(#sk)",
+                    "ExpressionAttributeNames": {"#pk":"pk","#sk":"sk"},
+                    "Item": {
+                      "orgId": {"S":"O1"},
+                      "projectId": {"S":"P2"},
+                      "name": {"S":"Hera"},
+                      "status": {"S":"active"},
+                      "pk": {"S":"$taskapp#orgid_o1"},
+                      "sk": {"S":"$project_1#projectid_p2"},
+                      "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                      "gsi1sk": {"S":"$team#project_1#projectid_p2"},
+                      "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                      "gsi2sk": {"S":"$board#status_active#projectid_p2#project_1"},
+                      "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                      "gsi3sk": {"S":"$org#orgprojects#project_1#name_hera"},
+                      "__edb_e__": {"S":"project"},
+                      "__edb_v__": {"S":"1"}
+                    },
+                    "ReturnValuesOnConditionCheckFailure": "ALL_OLD",
+                    "TableName": "table"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [
+                  {"M":{"item":{"NULL":true},"code":{"S":"None"},"rejected":{"BOOL":false}}},
+                  {"M":{"item":{"NULL":true},"code":{"S":"None"},"rejected":{"BOOL":false}}},
+                  {"M":{"item":{"NULL":true},"code":{"S":"None"},"rejected":{"BOOL":false}}},
+                  {"M":{"item":{"NULL":true},"code":{"S":"None"},"rejected":{"BOOL":false}}},
+                  {"M":{"item":{"NULL":true},"code":{"S":"None"},"rejected":{"BOOL":false}}}
+                ]
+              },
+              "canceled": {"BOOL":false}
+            }
+          },
+          "requests": [
+            {
+              "target": "TransactWriteItems",
+              "request": {
+                "ClientRequestToken": "req-1",
+                "TransactItems": [
+                  {
+                    "Put": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M1"},
+                        "name": {"S":"Ada"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m1"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      },
+                      "TableName": "table"
+                    }
+                  },
+                  {
+                    "Update": {
+                      "ConditionExpression": "#status = :status0",
+                      "ExpressionAttributeNames": {
+                        "#status": "status",
+                        "#name": "name",
+                        "#gsi3sk": "gsi3sk",
+                        "#orgId": "orgId",
+                        "#projectId": "projectId",
+                        "#__edb_e__": "__edb_e__",
+                        "#__edb_v__": "__edb_v__"
+                      },
+                      "ExpressionAttributeValues": {
+                        ":status0": {"S":"active"},
+                        ":name_u0": {"S":"Zeus"},
+                        ":gsi3sk_u0": {"S":"$org#orgprojects#project_1#name_zeus"},
+                        ":orgId_u0": {"S":"O1"},
+                        ":projectId_u0": {"S":"P1"},
+                        ":__edb_e___u0": {"S":"project"},
+                        ":__edb_v___u0": {"S":"1"}
+                      },
+                      "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$project_1#projectid_p1"}},
+                      "TableName": "table",
+                      "UpdateExpression": "SET #name = :name_u0, #gsi3sk = :gsi3sk_u0, #orgId = :orgId_u0, #projectId = :projectId_u0, #__edb_e__ = :__edb_e___u0, #__edb_v__ = :__edb_v___u0"
+                    }
+                  },
+                  {
+                    "Delete": {
+                      "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m2"}},
+                      "TableName": "table"
+                    }
+                  },
+                  {
+                    "ConditionCheck": {
+                      "ConditionExpression": "attribute_exists(#name)",
+                      "ExpressionAttributeNames": {"#name":"name"},
+                      "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m3"}},
+                      "TableName": "table"
+                    }
+                  },
+                  {
+                    "Put": {
+                      "ConditionExpression": "attribute_not_exists(#pk) AND attribute_not_exists(#sk)",
+                      "ExpressionAttributeNames": {"#pk":"pk","#sk":"sk"},
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "projectId": {"S":"P2"},
+                        "name": {"S":"Hera"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$project_1#projectid_p2"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#project_1#projectid_p2"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#projectid_p2#project_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgprojects#project_1#name_hera"},
+                        "__edb_e__": {"S":"project"},
+                        "__edb_v__": {"S":"1"}
+                      },
+                      "ReturnValuesOnConditionCheckFailure": "ALL_OLD",
+                      "TableName": "table"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "canceled write transaction",
+      "service": "taskapp",
+      "chain": [
+        [
+          "transaction.write",
+          {
+            "$fn": "tx",
+            "args": [
+              {"entity":"member","chain":[["put",{"orgId":"O1","memberId":"M1"}]]},
+              {
+                "entity": "project",
+                "chain": [["create",{"orgId":"O1","projectId":"P1"}]],
+                "commit": {"response":"all_old"}
+              }
+            ]
+          }
+        ]
+      ],
+      "params": false,
+      "responses": [
+        {
+          "__type": "com.amazonaws.dynamodb.v20120810#TransactionCanceledException",
+          "message": "Transaction cancelled",
+          "CancellationReasons": [
+            {"Code":"None"},
+            {
+              "Code": "ConditionalCheckFailed",
+              "Message": "The conditional request failed",
+              "Item": {
+                "orgId": {"S":"O1"},
+                "projectId": {"S":"P1"},
+                "name": {"S":"Apollo"},
+                "status": {"S":"active"},
+                "owner": {"S":"M1"},
+                "due": {"S":"2026-03-01"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$project_1#projectid_p1"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#project_1#projectid_p1"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_active#projectid_p1#project_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgprojects#project_1#name_apollo"},
+                "__edb_e__": {"S":"project"},
+                "__edb_v__": {"S":"1"}
+              }
+            }
+          ]
+        }
+      ],
+      "recorded": {
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [
+                  {"M":{"rejected":{"BOOL":false},"code":{"S":"None"},"item":{"NULL":true}}},
+                  {
+                    "M": {
+                      "rejected": {"BOOL":true},
+                      "code": {"S":"ConditionalCheckFailed"},
+                      "message": {"S":"The conditional request failed"},
+                      "item": {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "projectId": {"S":"P1"},
+                          "name": {"S":"Apollo"},
+                          "status": {"S":"active"},
+                          "owner": {"S":"M1"},
+                          "due": {"S":"2026-03-01"}
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "canceled": {"BOOL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "TransactWriteItems",
+              "request": {
+                "ClientRequestToken": "fb5ea866-77d2-4368-b8c5-8c2b72308da4",
+                "TransactItems": [
+                  {
+                    "Put": {
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "memberId": {"S":"M1"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$member_1#memberid_m1"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgmembers#member_1#name_"},
+                        "__edb_e__": {"S":"member"},
+                        "__edb_v__": {"S":"1"}
+                      },
+                      "TableName": "table"
+                    }
+                  },
+                  {
+                    "Put": {
+                      "ConditionExpression": "attribute_not_exists(#pk) AND attribute_not_exists(#sk)",
+                      "ExpressionAttributeNames": {"#pk":"pk","#sk":"sk"},
+                      "Item": {
+                        "orgId": {"S":"O1"},
+                        "projectId": {"S":"P1"},
+                        "status": {"S":"active"},
+                        "pk": {"S":"$taskapp#orgid_o1"},
+                        "sk": {"S":"$project_1#projectid_p1"},
+                        "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi1sk": {"S":"$team#project_1#projectid_p1"},
+                        "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi2sk": {"S":"$board#status_active#projectid_p1#project_1"},
+                        "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                        "gsi3sk": {"S":"$org#orgprojects#project_1#name_"},
+                        "__edb_e__": {"S":"project"},
+                        "__edb_v__": {"S":"1"}
+                      },
+                      "ReturnValuesOnConditionCheckFailure": "ALL_OLD",
+                      "TableName": "table"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "get transaction",
+      "service": "taskapp",
+      "chain": [
+        [
+          "transaction.get",
+          {
+            "$fn": "tx",
+            "args": [
+              {"entity":"member","chain":[["get",{"orgId":"O1","memberId":"M1"}]]},
+              {"entity":"project","chain":[["get",{"orgId":"O1","projectId":"P9"}]]}
+            ]
+          }
+        ]
+      ],
+      "responses": [
+        {
+          "Responses": [
+            {
+              "Item": {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M1"},
+                "name": {"S":"Ada"},
+                "status": {"S":"active"},
+                "visits": {"N":"3"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$member_1#memberid_m1"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                "__edb_e__": {"S":"member"},
+                "__edb_v__": {"S":"1"}
+              }
+            },
+            {}
+          ]
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "TransactGetItems",
+            "request": {
+              "TransactItems": [
+                {
+                  "Get": {
+                    "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}},
+                    "TableName": "table"
+                  }
+                },
+                {
+                  "Get": {
+                    "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$project_1#projectid_p9"}},
+                    "TableName": "table"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "L": [
+                  {
+                    "M": {
+                      "rejected": {"BOOL":false},
+                      "item": {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M1"},
+                          "name": {"S":"Ada"},
+                          "status": {"S":"active"},
+                          "visits": {"N":"3"}
+                        }
+                      }
+                    }
+                  },
+                  {"M":{"rejected":{"BOOL":false},"item":{"NULL":true}}}
+                ]
+              },
+              "canceled": {"BOOL":false}
+            }
+          },
+          "requests": [
+            {
+              "target": "TransactGetItems",
+              "request": {
+                "TransactItems": [
+                  {
+                    "Get": {
+                      "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}},
+                      "TableName": "table"
+                    }
+                  },
+                  {
+                    "Get": {
+                      "Key": {"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$project_1#projectid_p9"}},
+                      "TableName": "table"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "isolated collection",
+      "service": "taskapp",
+      "chain": [["collections.team",{"orgId":"O1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "orgId": {"S":"O1"},
+              "memberId": {"S":"M1"},
+              "name": {"S":"Ada"},
+              "status": {"S":"active"},
+              "visits": {"N":"3"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$member_1#memberid_m1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+              "__edb_e__": {"S":"member"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "orgId": {"S":"O1"},
+              "projectId": {"S":"P1"},
+              "name": {"S":"Apollo"},
+              "status": {"S":"active"},
+              "owner": {"S":"M1"},
+              "due": {"S":"2026-03-01"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$project_1#projectid_p1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#project_1#projectid_p1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#projectid_p1#project_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgprojects#project_1#name_apollo"},
+              "__edb_e__": {"S":"project"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "orgId": {"S":"O1"},
+              "memberId": {"S":"M2"},
+              "name": {"S":"Bo"},
+              "status": {"S":"away"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$member_1#memberid_m2"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_away#memberid_m2#member_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgmembers#member_1#name_bo"},
+              "__edb_e__": {"S":"other"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 3,
+          "ScannedCount": 3
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+              "ExpressionAttributeValues": {
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$team"},
+                ":__edb_e___member_c0": {"S":"member"},
+                ":__edb_v___member_c0": {"S":"1"},
+                ":__edb_e___project_c0": {"S":"project"},
+                ":__edb_v___project_c0": {"S":"1"}
+              },
+              "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+              "IndexName": "gsi1",
+              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "member": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M1"},
+                          "name": {"S":"Ada"},
+                          "status": {"S":"active"},
+                          "visits": {"N":"3"}
+                        }
+                      }
+                    ]
+                  },
+                  "project": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "projectId": {"S":"P1"},
+                          "name": {"S":"Apollo"},
+                          "status": {"S":"active"},
+                          "owner": {"S":"M1"},
+                          "due": {"S":"2026-03-01"}
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$team"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+                "IndexName": "gsi1",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "isolated collection with a filter",
+      "service": "taskapp",
+      "chain": [["collections.team",{"orgId":"O1"}],["where",{"$fn":"where","args":[["eq","name","Ada"]]}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#name": "name",
+                "#pk": "gsi1pk",
+                "#sk1": "gsi1sk",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":name0": {"S":"Ada"},
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$team"},
+                ":__edb_e___member_c0": {"S":"member"},
+                ":__edb_v___member_c0": {"S":"1"},
+                ":__edb_e___project_c0": {"S":"project"},
+                ":__edb_v___project_c0": {"S":"1"}
+              },
+              "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0)) AND #name = :name0",
+              "IndexName": "gsi1",
+              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"M":{"member":{"L":[]},"project":{"L":[]}}},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#name": "name",
+                  "#pk": "gsi1pk",
+                  "#sk1": "gsi1sk",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__"
+                },
+                "ExpressionAttributeValues": {
+                  ":name0": {"S":"Ada"},
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$team"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0)) AND #name = :name0",
+                "IndexName": "gsi1",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "clustered collection",
+      "service": "taskapp",
+      "chain": [["collections.board",{"orgId":"O1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "orgId": {"S":"O1"},
+              "memberId": {"S":"M1"},
+              "name": {"S":"Ada"},
+              "status": {"S":"active"},
+              "visits": {"N":"3"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$member_1#memberid_m1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+              "__edb_e__": {"S":"member"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "orgId": {"S":"O1"},
+              "memberId": {"S":"M2"},
+              "name": {"S":"Bo"},
+              "status": {"S":"away"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$member_1#memberid_m2"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#member_1#memberid_m2"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_away#memberid_m2#member_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgmembers#member_1#name_bo"},
+              "__edb_e__": {"S":"member"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "orgId": {"S":"O1"},
+              "projectId": {"S":"P1"},
+              "name": {"S":"Apollo"},
+              "status": {"S":"active"},
+              "owner": {"S":"M1"},
+              "due": {"S":"2026-03-01"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$project_1#projectid_p1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#project_1#projectid_p1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#projectid_p1#project_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgprojects#project_1#name_apollo"},
+              "__edb_e__": {"S":"project"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 3,
+          "ScannedCount": 3
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+              "ExpressionAttributeValues": {
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$board"},
+                ":__edb_e___member_c0": {"S":"member"},
+                ":__edb_v___member_c0": {"S":"1"},
+                ":__edb_e___project_c0": {"S":"project"},
+                ":__edb_v___project_c0": {"S":"1"}
+              },
+              "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+              "IndexName": "gsi2",
+              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "member": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M1"},
+                          "name": {"S":"Ada"},
+                          "status": {"S":"active"},
+                          "visits": {"N":"3"}
+                        }
+                      },
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M2"},
+                          "name": {"S":"Bo"},
+                          "status": {"S":"away"}
+                        }
+                      }
+                    ]
+                  },
+                  "project": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "projectId": {"S":"P1"},
+                          "name": {"S":"Apollo"},
+                          "status": {"S":"active"},
+                          "owner": {"S":"M1"},
+                          "due": {"S":"2026-03-01"}
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$board"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+                "IndexName": "gsi2",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "clustered collection by status",
+      "service": "taskapp",
+      "chain": [["collections.board",{"orgId":"O1","status":"away"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+              "ExpressionAttributeValues": {
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$board#status_away"},
+                ":__edb_e___member_c0": {"S":"member"},
+                ":__edb_v___member_c0": {"S":"1"},
+                ":__edb_e___project_c0": {"S":"project"},
+                ":__edb_v___project_c0": {"S":"1"}
+              },
+              "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+              "IndexName": "gsi2",
+              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"M":{"member":{"L":[]},"project":{"L":[]}}},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$board#status_away"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+                "IndexName": "gsi2",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "clustered collection gt",
+      "service": "taskapp",
+      "chain": [["collections.board",{"orgId":"O1"}],["gt",{"status":"active"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+              "ExpressionAttributeValues": {
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$board#status_active"},
+                ":__edb_e___member_c0": {"S":"member"},
+                ":__edb_v___member_c0": {"S":"1"},
+                ":__edb_e___project_c0": {"S":"project"},
+                ":__edb_v___project_c0": {"S":"1"}
+              },
+              "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+              "IndexName": "gsi2",
+              "KeyConditionExpression": "#pk = :pk and #sk1 > :sk1",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"M":{"member":{"L":[]},"project":{"L":[]}}},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi2pk","#sk1":"gsi2sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$board#status_active"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+                "IndexName": "gsi2",
+                "KeyConditionExpression": "#pk = :pk and #sk1 > :sk1",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub-collection parent",
+      "service": "taskapp",
+      "chain": [["collections.org",{"orgId":"O1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "orgId": {"S":"O1"},
+              "memberId": {"S":"M1"},
+              "name": {"S":"Ada"},
+              "status": {"S":"active"},
+              "visits": {"N":"3"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$member_1#memberid_m1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+              "__edb_e__": {"S":"member"},
+              "__edb_v__": {"S":"1"}
+            },
+            {
+              "orgId": {"S":"O1"},
+              "projectId": {"S":"P1"},
+              "name": {"S":"Apollo"},
+              "status": {"S":"active"},
+              "owner": {"S":"M1"},
+              "due": {"S":"2026-03-01"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$project_1#projectid_p1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#project_1#projectid_p1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#projectid_p1#project_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgprojects#project_1#name_apollo"},
+              "__edb_e__": {"S":"project"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 2,
+          "ScannedCount": 2
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi3pk","#sk1":"gsi3sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+              "ExpressionAttributeValues": {
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$org"},
+                ":__edb_e___member_c0": {"S":"member"},
+                ":__edb_v___member_c0": {"S":"1"},
+                ":__edb_e___project_c0": {"S":"project"},
+                ":__edb_v___project_c0": {"S":"1"}
+              },
+              "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+              "IndexName": "gsi3",
+              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "member": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M1"},
+                          "name": {"S":"Ada"},
+                          "status": {"S":"active"},
+                          "visits": {"N":"3"}
+                        }
+                      }
+                    ]
+                  },
+                  "project": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "projectId": {"S":"P1"},
+                          "name": {"S":"Apollo"},
+                          "status": {"S":"active"},
+                          "owner": {"S":"M1"},
+                          "due": {"S":"2026-03-01"}
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi3pk","#sk1":"gsi3sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$org"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+                "IndexName": "gsi3",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "sub-collection child",
+      "service": "taskapp",
+      "chain": [["collections.orgMembers",{"orgId":"O1"}]],
+      "responses": [
+        {
+          "Items": [
+            {
+              "orgId": {"S":"O1"},
+              "memberId": {"S":"M1"},
+              "name": {"S":"Ada"},
+              "status": {"S":"active"},
+              "visits": {"N":"3"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$member_1#memberid_m1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+              "__edb_e__": {"S":"member"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi3pk","#sk1":"gsi3sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+              "ExpressionAttributeValues": {
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$org#orgmembers"},
+                ":__edb_e___member_c0": {"S":"member"},
+                ":__edb_v___member_c0": {"S":"1"}
+              },
+              "FilterExpression": "(#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0)",
+              "IndexName": "gsi3",
+              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "member": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M1"},
+                          "name": {"S":"Ada"},
+                          "status": {"S":"active"},
+                          "visits": {"N":"3"}
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi3pk","#sk1":"gsi3sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$org#orgmembers"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"}
+                },
+                "FilterExpression": "(#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0)",
+                "IndexName": "gsi3",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "collection pages",
+      "service": "taskapp",
+      "chain": [["collections.team",{"orgId":"O1"}]],
+      "params": false,
+      "go": {"pages":"all"},
+      "responses": [
+        {
+          "Items": [
+            {
+              "orgId": {"S":"O1"},
+              "memberId": {"S":"M1"},
+              "name": {"S":"Ada"},
+              "status": {"S":"active"},
+              "visits": {"N":"3"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$member_1#memberid_m1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+              "__edb_e__": {"S":"member"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1,
+          "LastEvaluatedKey": {
+            "pk": {"S":"$taskapp#orgid_o1"},
+            "sk": {"S":"$member_1#memberid_m1"},
+            "gsi1pk": {"S":"$taskapp#orgid_o1"},
+            "gsi1sk": {"S":"$team#member_1#memberid_m1"}
+          }
+        },
+        {
+          "Items": [
+            {
+              "orgId": {"S":"O1"},
+              "projectId": {"S":"P1"},
+              "name": {"S":"Apollo"},
+              "status": {"S":"active"},
+              "owner": {"S":"M1"},
+              "due": {"S":"2026-03-01"},
+              "pk": {"S":"$taskapp#orgid_o1"},
+              "sk": {"S":"$project_1#projectid_p1"},
+              "gsi1pk": {"S":"$taskapp#orgid_o1"},
+              "gsi1sk": {"S":"$team#project_1#projectid_p1"},
+              "gsi2pk": {"S":"$taskapp#orgid_o1"},
+              "gsi2sk": {"S":"$board#status_active#projectid_p1#project_1"},
+              "gsi3pk": {"S":"$taskapp#orgid_o1"},
+              "gsi3sk": {"S":"$org#orgprojects#project_1#name_apollo"},
+              "__edb_e__": {"S":"project"},
+              "__edb_v__": {"S":"1"}
+            }
+          ],
+          "Count": 1,
+          "ScannedCount": 1
+        }
+      ],
+      "recorded": {
+        "go": {
+          "result": {
+            "M": {
+              "data": {
+                "M": {
+                  "member": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "memberId": {"S":"M1"},
+                          "name": {"S":"Ada"},
+                          "status": {"S":"active"},
+                          "visits": {"N":"3"}
+                        }
+                      }
+                    ]
+                  },
+                  "project": {
+                    "L": [
+                      {
+                        "M": {
+                          "orgId": {"S":"O1"},
+                          "projectId": {"S":"P1"},
+                          "name": {"S":"Apollo"},
+                          "status": {"S":"active"},
+                          "owner": {"S":"M1"},
+                          "due": {"S":"2026-03-01"}
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "cursor": {"NULL":true}
+            }
+          },
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$team"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+                "IndexName": "gsi1",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            },
+            {
+              "target": "Query",
+              "request": {
+                "ExclusiveStartKey": {
+                  "pk": {"S":"$taskapp#orgid_o1"},
+                  "sk": {"S":"$member_1#memberid_m1"},
+                  "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                  "gsi1sk": {"S":"$team#member_1#memberid_m1"}
+                },
+                "ExpressionAttributeNames": {"#pk":"gsi1pk","#sk1":"gsi1sk","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$team"},
+                  ":__edb_e___member_c0": {"S":"member"},
+                  ":__edb_v___member_c0": {"S":"1"},
+                  ":__edb_e___project_c0": {"S":"project"},
+                  ":__edb_v___project_c0": {"S":"1"}
+                },
+                "FilterExpression": "((#__edb_e__ = :__edb_e___member_c0 AND #__edb_v__ = :__edb_v___member_c0) OR (#__edb_e__ = :__edb_e___project_c0 AND #__edb_v__ = :__edb_v___project_c0))",
+                "IndexName": "gsi1",
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "put with a composite index",
+      "entity": "project",
+      "chain": [["put",{"orgId":"O1","projectId":"P1","owner":"M1","due":"2026-03-01"}]],
+      "go": false,
+      "recorded": {
+        "params": [
+          {
+            "target": "PutItem",
+            "request": {
+              "Item": {
+                "orgId": {"S":"O1"},
+                "projectId": {"S":"P1"},
+                "status": {"S":"active"},
+                "owner": {"S":"M1"},
+                "due": {"S":"2026-03-01"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$project_1#projectid_p1"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#project_1#projectid_p1"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_active#projectid_p1#project_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgprojects#project_1#name_"},
+                "__edb_e__": {"S":"project"},
+                "__edb_v__": {"S":"1"}
+              },
+              "TableName": "table"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "composite index query",
+      "entity": "project",
+      "chain": [["query.byOwner",{"orgId":"O1","owner":"M1"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#orgId":"orgId","#owner":"owner","#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__"},
+              "ExpressionAttributeValues": {
+                ":orgIdk_0": {"S":"O1"},
+                ":ownerk_0": {"S":"M1"},
+                ":__edb_e___projectk_0": {"S":"project"},
+                ":__edb_v___projectk_0": {"S":"1"}
+              },
+              "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+              "IndexName": "gsi4",
+              "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#orgId": "orgId",
+                  "#owner": "owner",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__"
+                },
+                "ExpressionAttributeValues": {
+                  ":orgIdk_0": {"S":"O1"},
+                  ":ownerk_0": {"S":"M1"},
+                  ":__edb_e___projectk_0": {"S":"project"},
+                  ":__edb_v___projectk_0": {"S":"1"}
+                },
+                "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+                "IndexName": "gsi4",
+                "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "composite index query with sk",
+      "entity": "project",
+      "chain": [["query.byOwner",{"orgId":"O1","owner":"M1","due":"2026-03-01"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#orgId": "orgId",
+                "#owner": "owner",
+                "#due": "due",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":orgIdk_0": {"S":"O1"},
+                ":ownerk_0": {"S":"M1"},
+                ":duek_0": {"S":"2026-03-01"},
+                ":__edb_e___projectk_0": {"S":"project"},
+                ":__edb_v___projectk_0": {"S":"1"}
+              },
+              "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+              "IndexName": "gsi4",
+              "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0 AND #due = :duek_0",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#orgId": "orgId",
+                  "#owner": "owner",
+                  "#due": "due",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__"
+                },
+                "ExpressionAttributeValues": {
+                  ":orgIdk_0": {"S":"O1"},
+                  ":ownerk_0": {"S":"M1"},
+                  ":duek_0": {"S":"2026-03-01"},
+                  ":__edb_e___projectk_0": {"S":"project"},
+                  ":__edb_v___projectk_0": {"S":"1"}
+                },
+                "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+                "IndexName": "gsi4",
+                "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0 AND #due = :duek_0",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "composite index between",
+      "entity": "project",
+      "chain": [
+        ["query.byOwner",{"orgId":"O1","owner":"M1"}],
+        ["between",{"due":"2026-01-01"},{"due":"2026-06-01"}]
+      ],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#orgId": "orgId",
+                "#owner": "owner",
+                "#due": "due",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":orgIdk_0": {"S":"O1"},
+                ":ownerk_0": {"S":"M1"},
+                ":duek_0": {"S":"2026-01-01"},
+                ":duek_1": {"S":"2026-06-01"},
+                ":__edb_e___projectk_0": {"S":"project"},
+                ":__edb_v___projectk_0": {"S":"1"}
+              },
+              "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+              "IndexName": "gsi4",
+              "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0 AND #due BETWEEN :duek_0 AND :duek_1",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#orgId": "orgId",
+                  "#owner": "owner",
+                  "#due": "due",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__"
+                },
+                "ExpressionAttributeValues": {
+                  ":orgIdk_0": {"S":"O1"},
+                  ":ownerk_0": {"S":"M1"},
+                  ":duek_0": {"S":"2026-01-01"},
+                  ":duek_1": {"S":"2026-06-01"},
+                  ":__edb_e___projectk_0": {"S":"project"},
+                  ":__edb_v___projectk_0": {"S":"1"}
+                },
+                "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+                "IndexName": "gsi4",
+                "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0 AND #due BETWEEN :duek_0 AND :duek_1",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "composite index gt",
+      "entity": "project",
+      "chain": [["query.byOwner",{"orgId":"O1","owner":"M1"}],["gt",{"due":"2026-01-01"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#orgId": "orgId",
+                "#owner": "owner",
+                "#due": "due",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__"
+              },
+              "ExpressionAttributeValues": {
+                ":orgIdk_0": {"S":"O1"},
+                ":ownerk_0": {"S":"M1"},
+                ":duek_0": {"S":"2026-01-01"},
+                ":__edb_e___projectk_0": {"S":"project"},
+                ":__edb_v___projectk_0": {"S":"1"}
+              },
+              "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+              "IndexName": "gsi4",
+              "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0 AND #due > :duek_0",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#orgId": "orgId",
+                  "#owner": "owner",
+                  "#due": "due",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__"
+                },
+                "ExpressionAttributeValues": {
+                  ":orgIdk_0": {"S":"O1"},
+                  ":ownerk_0": {"S":"M1"},
+                  ":duek_0": {"S":"2026-01-01"},
+                  ":__edb_e___projectk_0": {"S":"project"},
+                  ":__edb_v___projectk_0": {"S":"1"}
+                },
+                "FilterExpression": "(#__edb_e__ = :__edb_e___projectk_0 AND #__edb_v__ = :__edb_v___projectk_0)",
+                "IndexName": "gsi4",
+                "KeyConditionExpression": "#orgId = :orgIdk_0 AND #owner = :ownerk_0 AND #due > :duek_0",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "find by primary key",
+      "entity": "member",
+      "chain": [["find",{"orgId":"O1","memberId":"M1"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+              "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o1"},":sk1":{"S":"$member_1#memberid_m1"}},
+              "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o1"},":sk1":{"S":"$member_1#memberid_m1"}},
+                "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "find by pk only",
+      "entity": "member",
+      "chain": [["find",{"orgId":"O1"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+              "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o1"},":sk1":{"S":"$member_1#memberid_"}},
+              "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"pk","#sk1":"sk"},
+                "ExpressionAttributeValues": {":pk":{"S":"$taskapp#orgid_o1"},":sk1":{"S":"$member_1#memberid_"}},
+                "KeyConditionExpression": "#pk = :pk and begins_with(#sk1, :sk1)",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "find with no index",
+      "entity": "member",
+      "chain": [["find",{"visits":3}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Scan",
+            "request": {
+              "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
+              "ExpressionAttributeValues": {
+                ":__edb_e__0": {"S":"member"},
+                ":__edb_v__0": {"S":"1"},
+                ":pk": {"S":"$taskapp#orgid_"},
+                ":sk": {"S":"$member_1#memberid_"}
+              },
+              "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Scan",
+              "request": {
+                "ExpressionAttributeNames": {"#__edb_e__":"__edb_e__","#__edb_v__":"__edb_v__","#pk":"pk","#sk":"sk"},
+                "ExpressionAttributeValues": {
+                  ":__edb_e__0": {"S":"member"},
+                  ":__edb_v__0": {"S":"1"},
+                  ":pk": {"S":"$taskapp#orgid_"},
+                  ":sk": {"S":"$member_1#memberid_"}
+                },
+                "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#__edb_e__ = :__edb_e__0) AND #__edb_v__ = :__edb_v__0",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "match",
+      "entity": "member",
+      "chain": [["match",{"orgId":"O1","name":"Ada","visits":3}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#orgId":"orgId","#name":"name","#visits":"visits","#pk":"gsi3pk","#sk1":"gsi3sk"},
+              "ExpressionAttributeValues": {
+                ":orgId0": {"S":"O1"},
+                ":name0": {"S":"Ada"},
+                ":visits0": {"N":"3"},
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$org#orgmembers#member_1#name_ada"}
+              },
+              "FilterExpression": "#orgId = :orgId0 AND #name = :name0 AND #visits = :visits0",
+              "IndexName": "gsi3",
+              "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#orgId":"orgId","#name":"name","#visits":"visits","#pk":"gsi3pk","#sk1":"gsi3sk"},
+                "ExpressionAttributeValues": {
+                  ":orgId0": {"S":"O1"},
+                  ":name0": {"S":"Ada"},
+                  ":visits0": {"N":"3"},
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$org#orgmembers#member_1#name_ada"}
+                },
+                "FilterExpression": "#orgId = :orgId0 AND #name = :name0 AND #visits = :visits0",
+                "IndexName": "gsi3",
+                "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "match with no index",
+      "entity": "member",
+      "chain": [["match",{"name":"Ada"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Scan",
+            "request": {
+              "ExpressionAttributeNames": {
+                "#name": "name",
+                "#__edb_e__": "__edb_e__",
+                "#__edb_v__": "__edb_v__",
+                "#pk": "pk",
+                "#sk": "sk"
+              },
+              "ExpressionAttributeValues": {
+                ":name0": {"S":"Ada"},
+                ":__edb_e__0": {"S":"member"},
+                ":__edb_v__0": {"S":"1"},
+                ":pk": {"S":"$taskapp#orgid_"},
+                ":sk": {"S":"$member_1#memberid_"}
+              },
+              "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#name = :name0) AND #__edb_e__ = :__edb_e__0 AND #__edb_v__ = :__edb_v__0",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Scan",
+              "request": {
+                "ExpressionAttributeNames": {
+                  "#name": "name",
+                  "#__edb_e__": "__edb_e__",
+                  "#__edb_v__": "__edb_v__",
+                  "#pk": "pk",
+                  "#sk": "sk"
+                },
+                "ExpressionAttributeValues": {
+                  ":name0": {"S":"Ada"},
+                  ":__edb_e__0": {"S":"member"},
+                  ":__edb_v__0": {"S":"1"},
+                  ":pk": {"S":"$taskapp#orgid_"},
+                  ":sk": {"S":"$member_1#memberid_"}
+                },
+                "FilterExpression": "begins_with(#pk, :pk) AND begins_with(#sk, :sk) AND (#name = :name0) AND #__edb_e__ = :__edb_e__0 AND #__edb_v__ = :__edb_v__0",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "find by a gsi",
+      "entity": "project",
+      "chain": [["find",{"orgId":"O1","name":"Apollo"}]],
+      "recorded": {
+        "params": [
+          {
+            "target": "Query",
+            "request": {
+              "ExpressionAttributeNames": {"#pk":"gsi3pk","#sk1":"gsi3sk"},
+              "ExpressionAttributeValues": {
+                ":pk": {"S":"$taskapp#orgid_o1"},
+                ":sk1": {"S":"$org#orgprojects#project_1#name_apollo"}
+              },
+              "IndexName": "gsi3",
+              "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
+              "TableName": "table"
+            }
+          }
+        ],
+        "go": {
+          "result": {"M":{"data":{"L":[]},"cursor":{"NULL":true}}},
+          "requests": [
+            {
+              "target": "Query",
+              "request": {
+                "ExpressionAttributeNames": {"#pk":"gsi3pk","#sk1":"gsi3sk"},
+                "ExpressionAttributeValues": {
+                  ":pk": {"S":"$taskapp#orgid_o1"},
+                  ":sk1": {"S":"$org#orgprojects#project_1#name_apollo"}
+                },
+                "IndexName": "gsi3",
+                "KeyConditionExpression": "#pk = :pk and #sk1 = :sk1",
+                "TableName": "table"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "composite to keys",
+      "entity": "member",
+      "chain": [["conversions.fromComposite.toKeys",{"orgId":"O1","memberId":"M1"}]],
+      "recorded": {
+        "value": {
+          "M": {
+            "pk": {"S":"$taskapp#orgid_o1"},
+            "sk": {"S":"$member_1#memberid_m1"},
+            "gsi1pk": {"S":"$taskapp#orgid_o1"},
+            "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+            "gsi2pk": {"S":"$taskapp#orgid_o1"},
+            "gsi2sk": {"S":"$board#status_"},
+            "gsi3pk": {"S":"$taskapp#orgid_o1"},
+            "gsi3sk": {"S":"$org#orgmembers#member_1#name_"}
+          }
+        }
+      }
+    },
+    {
+      "name": "composite to cursor",
+      "entity": "member",
+      "chain": [["conversions.fromComposite.toCursor",{"orgId":"O1","memberId":"M1"}]],
+      "recorded": {
+        "value": {
+          "S": "eyJwayI6IiR0YXNrYXBwI29yZ2lkX28xIiwic2siOiIkbWVtYmVyXzEjbWVtYmVyaWRfbTEiLCJnc2kxcGsiOiIkdGFza2FwcCNvcmdpZF9vMSIsImdzaTFzayI6IiR0ZWFtI21lbWJlcl8xI21lbWJlcmlkX20xIiwiZ3NpMnBrIjoiJHRhc2thcHAjb3JnaWRfbzEiLCJnc2kyc2siOiIkYm9hcmQjc3RhdHVzXyIsImdzaTNwayI6IiR0YXNrYXBwI29yZ2lkX28xIiwiZ3NpM3NrIjoiJG9yZyNvcmdtZW1iZXJzI21lbWJlcl8xI25hbWVfIn0"
+        }
+      }
+    },
+    {
+      "name": "keys to composite",
+      "entity": "member",
+      "chain": [["conversions.fromKeys.toComposite",{"pk":"$taskapp#orgid_o1","sk":"$member_1#memberid_m1"}]],
+      "recorded": {
+        "error": {
+          "name": "ElectroError",
+          "message": "Provided keys did not include valid properties for the index \"gsi1\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-conversion-values-provided",
+          "code": 2007
+        }
+      }
+    },
+    {
+      "name": "keys to cursor",
+      "entity": "member",
+      "chain": [["conversions.fromKeys.toCursor",{"pk":"$taskapp#orgid_o1","sk":"$member_1#memberid_m1"}]],
+      "recorded": {"value":{"S":"eyJwayI6IiR0YXNrYXBwI29yZ2lkX28xIiwic2siOiIkbWVtYmVyXzEjbWVtYmVyaWRfbTEifQ"}}
+    },
+    {
+      "name": "cursor to keys",
+      "entity": "member",
+      "chain": [
+        [
+          "conversions.fromCursor.toKeys",
+          "eyJwayI6IiR0YXNrYXBwI29yZ2lkX28xIiwic2siOiIkbWVtYmVyXzEjbWVtYmVyaWRfbTEifQ"
+        ]
+      ],
+      "recorded": {"value":{"M":{"pk":{"S":"$taskapp#orgid_o1"},"sk":{"S":"$member_1#memberid_m1"}}}}
+    },
+    {
+      "name": "cursor to composite",
+      "entity": "member",
+      "chain": [
+        [
+          "conversions.fromCursor.toComposite",
+          "eyJwayI6IiR0YXNrYXBwI29yZ2lkX28xIiwic2siOiIkbWVtYmVyXzEjbWVtYmVyaWRfbTEifQ"
+        ]
+      ],
+      "recorded": {
+        "error": {
+          "name": "ElectroError",
+          "message": "Provided keys did not include valid properties for the index \"gsi1\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#invalid-conversion-values-provided",
+          "code": 2007
+        }
+      }
+    },
+    {
+      "name": "composite to keys by access pattern",
+      "entity": "member",
+      "chain": [
+        [
+          "conversions.byAccessPattern.board.fromComposite.toKeys",
+          {"orgId":"O1","status":"away","memberId":"M2"}
+        ]
+      ],
+      "recorded": {
+        "value": {
+          "M": {
+            "gsi2pk": {"S":"$taskapp#orgid_o1"},
+            "gsi2sk": {"S":"$board#status_away#memberid_m2#member_1"},
+            "pk": {"S":"$taskapp#orgid_o1"},
+            "sk": {"S":"$member_1#memberid_m2"}
+          }
+        }
+      }
+    },
+    {
+      "name": "partial composite to keys by access pattern",
+      "entity": "member",
+      "chain": [["conversions.byAccessPattern.board.fromComposite.toKeys",{"orgId":"O1","status":"away"}]],
+      "recorded": {
+        "value": {
+          "M": {
+            "gsi2pk": {"S":"$taskapp#orgid_o1"},
+            "gsi2sk": {"S":"$board#status_away#memberid_"},
+            "pk": {"S":"$taskapp#orgid_o1"},
+            "sk": {"S":"$member_1#memberid_"}
+          }
+        }
+      }
+    },
+    {
+      "name": "strict partial composite to keys",
+      "entity": "member",
+      "chain": [
+        [
+          "conversions.byAccessPattern.board.fromComposite.toKeys",
+          {"orgId":"O1","status":"away"},
+          {"strict":"all"}
+        ]
+      ],
+      "recorded": {
+        "error": {
+          "name": "ElectroError",
+          "message": "Incomplete or invalid key composite attributes supplied. Missing properties: \"memberId\" - For more detail on this error reference: https://electrodb.dev/en/reference/errors/#missing-composite-attributes",
+          "code": 2002
+        }
+      }
+    },
+    {
+      "name": "index keys to composite",
+      "entity": "member",
+      "chain": [
+        [
+          "conversions.byAccessPattern.board.fromKeys.toComposite",
+          {
+            "gsi2pk": "$taskapp#orgid_o1",
+            "gsi2sk": "$board#status_away#memberid_m2#member_1",
+            "pk": "$taskapp#orgid_o1",
+            "sk": "$member_1#memberid_m2"
+          }
+        ]
+      ],
+      "recorded": {"value":{"M":{"orgId":{"S":"o1"},"status":{"S":"away"},"memberId":{"S":"m2"}}}}
+    },
+    {
+      "name": "parse",
+      "entity": "member",
+      "chain": [
+        [
+          "parse",
+          {
+            "Item": {
+              "orgId": "O1",
+              "memberId": "M1",
+              "name": "Ada",
+              "status": "active",
+              "visits": 3,
+              "pk": "$taskapp#orgid_o1",
+              "sk": "$member_1#memberid_m1",
+              "gsi1pk": "$taskapp#orgid_o1",
+              "gsi1sk": "$team#member_1#memberid_m1",
+              "gsi2pk": "$taskapp#orgid_o1",
+              "gsi2sk": "$board#status_active#memberid_m1#member_1",
+              "gsi3pk": "$taskapp#orgid_o1",
+              "gsi3sk": "$org#orgmembers#member_1#name_ada",
+              "__edb_e__": "member",
+              "__edb_v__": "1"
+            }
+          }
+        ]
+      ],
+      "recorded": {
+        "value": {
+          "M": {
+            "data": {
+              "M": {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M1"},
+                "name": {"S":"Ada"},
+                "status": {"S":"active"},
+                "visits": {"N":"3"}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "parse an item with foreign identifiers",
+      "entity": "member",
+      "chain": [
+        [
+          "parse",
+          {
+            "Item": {
+              "orgId": "O1",
+              "memberId": "M1",
+              "name": "Ada",
+              "status": "active",
+              "visits": 3,
+              "pk": "$taskapp#orgid_o1",
+              "sk": "$member_1#memberid_m1",
+              "gsi1pk": "$taskapp#orgid_o1",
+              "gsi1sk": "$team#member_1#memberid_m1",
+              "gsi2pk": "$taskapp#orgid_o1",
+              "gsi2sk": "$board#status_active#memberid_m1#member_1",
+              "gsi3pk": "$taskapp#orgid_o1",
+              "gsi3sk": "$org#orgmembers#member_1#name_ada",
+              "__edb_e__": "other",
+              "__edb_v__": "1"
+            }
+          }
+        ]
+      ],
+      "recorded": {
+        "value": {
+          "M": {
+            "data": {
+              "M": {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M1"},
+                "name": {"S":"Ada"},
+                "status": {"S":"active"},
+                "visits": {"N":"3"}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "parse an item with invalid keys",
+      "entity": "member",
+      "chain": [
+        [
+          "parse",
+          {"Item":{"orgId":"O1","memberId":"M1","pk":"x","__edb_e__":"other","__edb_v__":"1"}}
+        ]
+      ],
+      "recorded": {"value":{"M":{"data":{"NULL":true}}}}
+    },
+    {
+      "name": "parse with includeKeys",
+      "entity": "member",
+      "chain": [
+        [
+          "parse",
+          {
+            "Item": {
+              "orgId": "O1",
+              "memberId": "M1",
+              "name": "Ada",
+              "status": "active",
+              "visits": 3,
+              "pk": "$taskapp#orgid_o1",
+              "sk": "$member_1#memberid_m1",
+              "gsi1pk": "$taskapp#orgid_o1",
+              "gsi1sk": "$team#member_1#memberid_m1",
+              "gsi2pk": "$taskapp#orgid_o1",
+              "gsi2sk": "$board#status_active#memberid_m1#member_1",
+              "gsi3pk": "$taskapp#orgid_o1",
+              "gsi3sk": "$org#orgmembers#member_1#name_ada",
+              "__edb_e__": "member",
+              "__edb_v__": "1"
+            }
+          },
+          {"data":"includeKeys"}
+        ]
+      ],
+      "recorded": {
+        "value": {
+          "M": {
+            "data": {
+              "M": {
+                "orgId": {"S":"O1"},
+                "memberId": {"S":"M1"},
+                "name": {"S":"Ada"},
+                "status": {"S":"active"},
+                "visits": {"N":"3"},
+                "pk": {"S":"$taskapp#orgid_o1"},
+                "sk": {"S":"$member_1#memberid_m1"},
+                "gsi1pk": {"S":"$taskapp#orgid_o1"},
+                "gsi1sk": {"S":"$team#member_1#memberid_m1"},
+                "gsi2pk": {"S":"$taskapp#orgid_o1"},
+                "gsi2sk": {"S":"$board#status_active#memberid_m1#member_1"},
+                "gsi3pk": {"S":"$taskapp#orgid_o1"},
+                "gsi3sk": {"S":"$org#orgmembers#member_1#name_ada"},
+                "__edb_e__": {"S":"member"},
+                "__edb_v__": {"S":"1"}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "parse attributes",
+      "entity": "member",
+      "chain": [["parse",{"Attributes":{"orgId":"O1","name":"Ada"}}]],
+      "recorded": {"value":{"M":{"data":{"M":{"orgId":{"S":"O1"},"name":{"S":"Ada"}}}}}}
+    }
+  ]
+}

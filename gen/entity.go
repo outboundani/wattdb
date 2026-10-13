@@ -24,6 +24,7 @@ type entity struct {
 	SchemaPtr bool
 	Name      string // ElectroDB entity name
 	Version   string
+	Service   string
 	Pkg       string // generated package name
 	Attrs     []*attribute
 
@@ -40,7 +41,11 @@ type pattern struct {
 	GoName    string // exported method name
 	PK, SK    []*attribute
 	HasSK     bool
-	Composite bool // multi-attribute (composite) index
+	Composite bool   // multi-attribute (composite) index
+	Type      string // isolated, clustered or composite
+	// Collections are the index's collections; with sub-collections, each
+	// one's name in order.
+	Collections []string
 }
 
 type condition struct {
@@ -125,7 +130,8 @@ func (e *entity) assignNames() error {
 		types[name] = path
 		return nil
 	}
-	for _, reserved := range []string{e.structName(), "Input", "Partial", "Key", "Filter"} {
+	for _, reserved := range []string{e.structName(), "Input", "Partial", "Key", "Filter",
+		"Client", "Conv", "IndexConv", "New", "Register", "Definition", "Decode", "Facets"} {
 		types[reserved] = "(generated)"
 	}
 	codecs := map[string]bool{}

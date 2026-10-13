@@ -36,7 +36,7 @@ func TestQueriesMatchVectors(t *testing.T) {
 				continue
 			}
 			first := c.Chain[0].Method
-			if !strings.HasPrefix(first, "query.") && first != "scan" && !strings.HasPrefix(first, "scan.") {
+			if !strings.HasPrefix(first, "query.") && first != "scan" && !strings.HasPrefix(first, "scan.") && first != "find" && first != "match" {
 				continue
 			}
 			t.Run(fileBase(v.File)+"/"+c.Name, func(t *testing.T) {
@@ -62,11 +62,21 @@ func buildQuery(t *testing.T, m *model.Model, c vectors.Case) *engine.Query {
 		q = engine.NewScan(m, "")
 	case strings.HasPrefix(first.Method, "scan."):
 		q = engine.NewScan(m, strings.TrimPrefix(first.Method, "scan."))
+	case first.Method == "find":
+		q = engine.NewFind(m, entriesOf(t, first.Args[0]))
+	case first.Method == "match":
+		q = engine.NewMatch(m, entriesOf(t, first.Args[0]))
 	default:
 		q = engine.NewQuery(m, strings.TrimPrefix(first.Method, "query."), entriesOf(t, first.Args[0]))
 	}
+	applySteps(t, q, c.Chain[1:])
+	return q
+}
+
+func applySteps(t *testing.T, q *engine.Query, steps []vectors.Step) {
+	t.Helper()
 	ops := map[string]engine.QueryType{"gt": engine.QueryGt, "gte": engine.QueryGte, "lt": engine.QueryLt, "lte": engine.QueryLte}
-	for _, step := range c.Chain[1:] {
+	for _, step := range steps {
 		switch step.Method {
 		case "begins":
 			q.Begins(entriesOf(t, step.Args[0]))
@@ -82,7 +92,6 @@ func buildQuery(t *testing.T, m *model.Model, c vectors.Case) *engine.Query {
 			q.Compare(typ, entriesOf(t, step.Args[0]))
 		}
 	}
-	return q
 }
 
 type queryOpts struct {
