@@ -1,5 +1,7 @@
 # wattdb
 
+<img src="docs/assets/banner.svg" alt="wattdb">
+
 wattdb is a strongly typed DynamoDB library for Go that reproduces
 [ElectroDB](https://electrodb.dev) 3.9. You describe entities in Go and wattdb generates typed
 clients for them. The items, keys, query results and cursors are the ones ElectroDB would produce,
