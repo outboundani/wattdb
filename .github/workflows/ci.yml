@@ -25,10 +25,10 @@ jobs:
       - run: go test ./...
       - name: generated code is current
         run: |
-          go generate ./integration/...
+          go generate ./integration/... ./examples/...
           if [ -n "$(git status --porcelain)" ]; then
             git status --porcelain
-            echo "generated code is out of date; run go generate ./integration/..."
+            echo "generated code is out of date; run go generate ./integration/... ./examples/..."
             exit 1
           fi
 

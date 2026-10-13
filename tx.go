@@ -203,10 +203,7 @@ func (t *TxWriteCall) Exec() error {
 	if len(reqs) == 0 {
 		return nil
 	}
-	client := t.client
-	if client == nil {
-		client = t.cfg.client
-	}
+	client := t.cfg.pick(t.client, "")
 	if _, err := client.TransactWriteItems(t.ctx, in); err != nil {
 		return txCanceled(err, len(reqs), func(i int, code, msg string, item map[string]any) (TxReason, error) {
 			res, err := reqs[i].TxCanceledResult(code, msg, item)
@@ -349,10 +346,7 @@ func (t *TxGetCall) Exec() error {
 	if len(reqs) == 0 {
 		return nil
 	}
-	client := t.client
-	if client == nil {
-		client = t.cfg.client
-	}
+	client := t.cfg.pick(t.client, "")
 	out, err := client.TransactGetItems(t.ctx, in)
 	if err != nil {
 		return txCanceled(err, len(reqs), func(i int, code, msg string, _ map[string]any) (TxReason, error) {

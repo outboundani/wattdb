@@ -198,10 +198,7 @@ func (q *CollectionQuery[R]) build(exec bool) (*engine.QueryRequest, error) {
 }
 
 func (q *CollectionQuery[R]) runner(ctx context.Context) *sdkRunner {
-	client := q.client
-	if client == nil {
-		client = q.c.cfg.client
-	}
+	client := q.c.cfg.pick(q.client, "")
 	return &sdkRunner{ctx: ctx, client: client, mutateQ: q.mutate, consistent: q.opts.Consistent}
 }
 

@@ -297,6 +297,13 @@ func run(opts Options, schemas []Schema) error {
 		}
 		files[filepath.Join(opts.OutDir, pkg, "collections.go")] = src
 	}
+	for e, old := range migrations(entities) {
+		src, err := renderMigration(e, old, opts.DBImport)
+		if err != nil {
+			return err
+		}
+		files[filepath.Join(opts.OutDir, e.Pkg, "migrate.go")] = src
+	}
 	rt, err := renderRuntime(entities, opts.DBImport)
 	if err != nil {
 		return err

@@ -231,7 +231,7 @@ func (u *Update[E, P]) exec(ctx context.Context) (engine.Response, error) {
 	if err != nil {
 		return engine.Response{}, err
 	}
-	out, err := u.c.clientFor(u.t.cfg).UpdateItem(ctx, in)
+	out, err := u.c.clientFor(u.t.cfg, u.t.def).UpdateItem(ctx, in)
 	if err != nil {
 		return engine.Response{}, wrapAWS(err)
 	}
@@ -288,7 +288,7 @@ func (u *Update[E, P]) ReturnRejected(opts ...RejectOption) *Rejectable[E] {
 		if err != nil {
 			return Outcome[E]{}, err
 		}
-		if _, err := u.c.clientFor(u.t.cfg).UpdateItem(ctx, in); err != nil {
+		if _, err := u.c.clientFor(u.t.cfg, u.t.def).UpdateItem(ctx, in); err != nil {
 			return rejected(u.t, r, err)
 		}
 		return Outcome[E]{}, nil
@@ -383,7 +383,7 @@ func (u *Upsert[E, P]) exec(ctx context.Context) (engine.Response, error) {
 	if err != nil {
 		return engine.Response{}, err
 	}
-	out, err := u.c.clientFor(u.t.cfg).UpdateItem(ctx, in)
+	out, err := u.c.clientFor(u.t.cfg, u.t.def).UpdateItem(ctx, in)
 	if err != nil {
 		return engine.Response{}, wrapAWS(err)
 	}
@@ -418,7 +418,7 @@ func (u *Upsert[E, P]) ReturnRejected(opts ...RejectOption) *Rejectable[E] {
 		if err != nil {
 			return Outcome[E]{}, err
 		}
-		if _, err := u.c.clientFor(u.t.cfg).UpdateItem(ctx, in); err != nil {
+		if _, err := u.c.clientFor(u.t.cfg, u.t.def).UpdateItem(ctx, in); err != nil {
 			return rejected(u.t, r, err)
 		}
 		return Outcome[E]{}, nil

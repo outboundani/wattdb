@@ -133,10 +133,7 @@ func (r *reader[E, P]) build(exec bool) (*engine.QueryRequest, error) {
 }
 
 func (r *reader[E, P]) runner(ctx context.Context) *sdkRunner {
-	client := r.client
-	if client == nil {
-		client = r.t.cfg.client
-	}
+	client := r.t.cfg.pick(r.client, r.t.def.model.Entity)
 	return &sdkRunner{ctx: ctx, client: client, scan: r.scan, mutateQ: r.mutateQ, mutateS: r.mutateS, consistent: r.opts.Consistent}
 }
 

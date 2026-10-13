@@ -32,11 +32,8 @@ type batch struct {
 	retry      *BackoffPolicy
 }
 
-func (b *batch) clientFor(cfg *Config) DynamoDB {
-	if b.client != nil {
-		return b.client
-	}
-	return cfg.client
+func (b *batch) clientFor(cfg *Config, def *EntityDef) DynamoDB {
+	return cfg.pick(b.client, def.model.Entity)
 }
 
 // runChunks runs fn over the requests, up to b.concurrent at a time
@@ -233,7 +230,7 @@ func (g *BatchGet[E, K]) run(ctx context.Context, preserve bool) (*engine.BatchG
 	if err != nil {
 		return nil, nil, err
 	}
-	client := g.b.clientFor(g.cfg)
+	client := g.b.clientFor(g.cfg, g.def)
 	var mu sync.Mutex
 	err = g.b.runChunks(ctx, len(b.Requests), func(ctx context.Context, i int) error {
 		req := b.Requests[i]
@@ -457,7 +454,7 @@ func (w *BatchWrite[T]) Exec(ctx context.Context) ([]T, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := w.b.clientFor(w.cfg)
+	client := w.b.clientFor(w.cfg, w.def)
 	var mu sync.Mutex
 	var left []map[string]any
 	err = w.b.runChunks(ctx, len(b.Requests), func(ctx context.Context, i int) error {
@@ -539,3 +536,6 @@ func writeKey(r map[string]any) map[string]any {
 	}
 	return r["DeleteRequest"].(map[string]any)["Key"].(map[string]any)
 }
+
+// MaxBatchWrite is the most writes one BatchWriteItem request holds.
+const MaxBatchWrite = engine.MaxBatchWrite

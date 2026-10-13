@@ -107,11 +107,8 @@ func (c *call) build(w *engine.Write, defaultTable string, exec bool) (*engine.R
 	return w.Build(defaultTable, opts)
 }
 
-func (c *call) clientFor(cfg *Config) DynamoDB {
-	if c.client != nil {
-		return c.client
-	}
-	return cfg.client
+func (c *call) clientFor(cfg *Config, def *EntityDef) DynamoDB {
+	return cfg.pick(c.client, def.model.Entity)
 }
 
 // Get reads one item by key (decisions D27, D28).
@@ -175,7 +172,7 @@ func (g *Get[E, P]) Exec(ctx context.Context) (E, error) {
 	if err != nil {
 		return zero, err
 	}
-	out, err := g.c.clientFor(g.t.cfg).GetItem(ctx, in)
+	out, err := g.c.clientFor(g.t.cfg, g.t.def).GetItem(ctx, in)
 	if err != nil {
 		return zero, wrapAWS(err)
 	}
@@ -280,7 +277,7 @@ func (p *Put[E, P]) exec(ctx context.Context) (Outcome[E], error) {
 	if err != nil {
 		return Outcome[E]{}, err
 	}
-	out, err := p.c.clientFor(p.t.cfg).PutItem(ctx, in)
+	out, err := p.c.clientFor(p.t.cfg, p.t.def).PutItem(ctx, in)
 	if err != nil {
 		return rejected(p.t, r, err)
 	}
@@ -390,7 +387,7 @@ func (d *Delete[E, P]) ReturnRejected(opts ...RejectOption) *Rejectable[E] {
 		if err != nil {
 			return Outcome[E]{}, err
 		}
-		if _, err := d.c.clientFor(d.t.cfg).DeleteItem(ctx, in); err != nil {
+		if _, err := d.c.clientFor(d.t.cfg, d.t.def).DeleteItem(ctx, in); err != nil {
 			return rejected(d.t, r, err)
 		}
 		return Outcome[E]{}, nil
@@ -433,7 +430,7 @@ func (d *Delete[E, P]) exec(ctx context.Context) (engine.Response, error) {
 	if err != nil {
 		return engine.Response{}, err
 	}
-	out, err := d.c.clientFor(d.t.cfg).DeleteItem(ctx, in)
+	out, err := d.c.clientFor(d.t.cfg, d.t.def).DeleteItem(ctx, in)
 	if err != nil {
 		return engine.Response{}, wrapAWS(err)
 	}

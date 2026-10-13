@@ -40,6 +40,10 @@ func importBlock(w *emitter, imports []string) {
 	}
 	w.p("import (")
 	for _, imp := range imports {
+		if imp == "" {
+			w.p("")
+			continue
+		}
 		if strings.HasSuffix(imp, "\"") {
 			w.p("\t%s", imp) // already has an alias
 		} else {
@@ -1025,8 +1029,16 @@ type serviceCollection struct {
 }
 
 // serviceCollections lists a service's collections in the order they first
-// appear.
+// appear. Only each entity's newest version joins them: like an ElectroDB
+// service, a collection holds one entity per name.
 func serviceCollections(entities []*entity) []*serviceCollection {
+	newest := map[string]*entity{}
+	for _, e := range entities {
+		if n, ok := newest[e.Name]; !ok || compareVersions(e.Version, n.Version) > 0 {
+			newest[e.Name] = e
+		}
+	}
+	entities = slices.DeleteFunc(slices.Clone(entities), func(e *entity) bool { return newest[e.Name] != e })
 	var out []*serviceCollection
 	byName := map[string]*serviceCollection{}
 	for _, e := range entities {
@@ -1067,9 +1079,14 @@ func renderService(pkg string, entities []*entity, colls []*serviceCollection, d
 	w.p("// Package %s queries the collections of the %s service (decision D43).", pkg, entities[0].Service)
 	w.p("package %s\n", pkg)
 	imports := []string{
-		"errors",
 		`ddbtypes "github.com/aws/aws-sdk-go-v2/service/dynamodb/types"`,
 		"github.com/outboundani/wattdb",
+	}
+	for _, c := range colls {
+		if collectionSteps(c) {
+			imports = append(imports, "errors") // Between joins two errors
+			break
+		}
 	}
 	seen := map[*entity]bool{}
 	for _, c := range colls {
@@ -1161,7 +1178,7 @@ func renderCollection(w *emitter, c *serviceCollection) {
 	w.p("\treturn &%s{c: c}, nil", c.GoName)
 	w.p("}\n")
 
-	steps := c.Pattern.Type != "isolated" && len(c.Pattern.SK) > 0
+	steps := collectionSteps(c)
 	ret, wrap := qt, "%s"
 	if steps {
 		ret = c.GoName + "Query"
@@ -1223,4 +1240,93 @@ func renderCollection(w *emitter, c *serviceCollection) {
 		w.p("\treturn s.q.KeyBegins(%q, av, err)", a.Field)
 		w.p("}\n")
 	}
+}
+
+// migrations pairs each entity version with the version before it, by
+// service and entity name (decision D47).
+func migrations(entities []*entity) map[*entity]*entity {
+	groups := map[string][]*entity{}
+	for _, e := range entities {
+		k := e.Service + "\x00" + e.Name
+		groups[k] = append(groups[k], e)
+	}
+	out := map[*entity]*entity{}
+	for _, g := range groups {
+		slices.SortFunc(g, func(a, b *entity) int { return compareVersions(a.Version, b.Version) })
+		for i := 1; i < len(g); i++ {
+			out[g[i]] = g[i-1]
+		}
+	}
+	return out
+}
+
+// compareVersions orders versions numerically when both are numbers.
+func compareVersions(a, b string) int {
+	x, errA := strconv.Atoi(a)
+	y, errB := strconv.Atoi(b)
+	if errA == nil && errB == nil {
+		return x - y
+	}
+	return strings.Compare(a, b)
+}
+
+// renderMigration renders migrate.go in the newer version's package.
+func renderMigration(e, old *entity, dbImport string) ([]byte, error) {
+	var w emitter
+	w.WriteString(header)
+	w.p("package %s\n", e.Pkg)
+	importBlock(&w, []string{
+		"context",
+		"fmt",
+		"time",
+		"",
+		strings.TrimSuffix(dbImport, "/") + "/" + old.Pkg,
+		"github.com/outboundani/wattdb",
+	})
+	O := old.Pkg + "." + old.structName()
+	w.p("// MigrateFrom copies every %s v%s item into this version (decision D47):", e.Name, old.Version)
+	w.p("// it scans src, converts each item with transform, and writes the results")
+	w.p("// to dst with batch puts. It returns how many items it wrote. The")
+	w.p("// old items are left in place; delete them once nothing reads them.")
+	w.p("func MigrateFrom(ctx context.Context, src *%s.Client, dst *Client, transform func(%s) (Input, error)) (int, error) {", old.Pkg, O)
+	w.p("\tvar batch []Input")
+	w.p("\twritten := 0")
+	w.p("\tflush := func() error {")
+	w.p("\t\tif len(batch) == 0 {")
+	w.p("\t\t\treturn nil")
+	w.p("\t\t}")
+	w.p("\t\tleft, err := dst.BatchPut(batch...).RetryUnprocessed(wattdb.Backoff(8, 50*time.Millisecond)).Exec(ctx)")
+	w.p("\t\tif err != nil {")
+	w.p("\t\t\treturn err")
+	w.p("\t\t}")
+	w.p("\t\tif len(left) > 0 {")
+	w.p("\t\t\treturn fmt.Errorf(\"%s: %%d items left unprocessed\", len(left))", e.Pkg)
+	w.p("\t\t}")
+	w.p("\t\twritten += len(batch)")
+	w.p("\t\tbatch = batch[:0]")
+	w.p("\t\treturn nil")
+	w.p("\t}")
+	w.p("\tfor item, err := range src.Scan().All(ctx) {")
+	w.p("\t\tif err != nil {")
+	w.p("\t\t\treturn written, err")
+	w.p("\t\t}")
+	w.p("\t\tin, err := transform(item)")
+	w.p("\t\tif err != nil {")
+	w.p("\t\t\treturn written, err")
+	w.p("\t\t}")
+	w.p("\t\tbatch = append(batch, in)")
+	w.p("\t\tif len(batch) == wattdb.MaxBatchWrite {")
+	w.p("\t\t\tif err := flush(); err != nil {")
+	w.p("\t\t\t\treturn written, err")
+	w.p("\t\t\t}")
+	w.p("\t\t}")
+	w.p("\t}")
+	w.p("\treturn written, flush()")
+	w.p("}")
+	return gofmt(e.Pkg+"/migrate.go", w.Bytes())
+}
+
+// collectionSteps reports whether a collection's queries get sort-key steps.
+func collectionSteps(c *serviceCollection) bool {
+	return c.Pattern.Type != "isolated" && len(c.Pattern.SK) > 0
 }

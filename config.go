@@ -28,6 +28,7 @@ var _ DynamoDB = (*dynamodb.Client)(nil)
 // D25).
 type Config struct {
 	client DynamoDB
+	hooks  []Hook
 }
 
 // ConfigOption configures a Config.

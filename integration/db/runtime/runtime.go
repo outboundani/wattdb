@@ -12,6 +12,7 @@ import (
 	"github.com/outboundani/wattdb/integration/db/member"
 	"github.com/outboundani/wattdb/integration/db/project"
 	"github.com/outboundani/wattdb/integration/db/task"
+	"github.com/outboundani/wattdb/integration/db/taskv2"
 	schema0 "github.com/outboundani/wattdb/integration/schema"
 )
 
@@ -20,4 +21,5 @@ func init() {
 	member.Register(schema0.Member{})
 	project.Register(schema0.Project{})
 	task.Register(schema0.Task{})
+	taskv2.Register(schema0.TaskV2{})
 }
