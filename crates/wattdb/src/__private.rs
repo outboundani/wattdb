@@ -178,9 +178,9 @@ pub fn condition_fn<P: FromAttrs>(f: impl Fn(&P) -> bool + Send + Sync + 'static
     })
 }
 
-/// Compiles a `validate_regex` pattern.
-pub fn regex(pattern: &str) -> std::result::Result<regex::Regex, String> {
-    regex::Regex::new(pattern).map_err(|e| format!("invalid validate_regex {pattern:?}: {e}"))
+/// Compiles a `validate_regex` pattern; the derive checked it already.
+pub fn regex(pattern: &str) -> regex::Regex {
+    regex::Regex::new(pattern).expect("the derive checks validate_regex patterns")
 }
 
 /// Compiles a generated definition, caching it in `cell`.
@@ -204,4 +204,14 @@ pub fn with_items(mut def: AttributeDef, f: impl FnOnce(&mut AttributeDef)) -> A
 pub use aws_sdk_dynamodb::operation::query::{QueryInput, QueryOutput};
 
 pub use crate::collection::member;
-pub use crate::query::facet;
+pub use crate::query::{Encoded, facet};
+
+/// Names an entity's key and query types for one of its collections,
+/// keyed by [`collection_id`] of the collection's name, so the collection
+/// derive can reach them through the first member's type alone.
+pub trait InCollection<const ID: u64> {
+    type Key: crate::CollectionKey;
+    type Query<R: crate::CollectionResult>;
+
+    fn query<R: crate::CollectionResult>(q: crate::CollectionQuery<R>) -> Self::Query<R>;
+}

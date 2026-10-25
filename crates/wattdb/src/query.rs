@@ -104,7 +104,8 @@ impl CompareMode {
     }
 }
 
-pub(crate) type Encoded = std::result::Result<Value, String>;
+/// A value encoded when a builder was made, kept until it runs.
+pub type Encoded = std::result::Result<Value, String>;
 type Mutator<I> = Arc<dyn Fn(&mut I) + Send + Sync>;
 
 /// A key composite given to an access pattern; generated code builds them.
