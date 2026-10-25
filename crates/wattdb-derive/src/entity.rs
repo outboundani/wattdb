@@ -528,6 +528,10 @@ fn query_steps(name: &Ident, pp: &str, pattern: &str, sk: &[&Field], vis: &syn::
                     self.0.key_between(#stored, #lo, #hi)
                 }
                 pub fn begins_with(self, v: impl ::core::convert::Into<#inner>) -> ::wattdb::Query<#e> { self.0.key_begins(#stored, #ev) }
+                /// Matches stored values starting with `prefix`, which needn't be a whole value.
+                pub fn begins_with_prefix(self, prefix: impl ::core::convert::Into<::std::string::String>) -> ::wattdb::Query<#e> {
+                    self.0.key_begins(#stored, ::core::result::Result::Ok(::wattdb::Value::String(prefix.into())))
+                }
             }
         });
     }
@@ -657,6 +661,10 @@ fn collection_steps(name: &Ident, cp: &str, coll: &str, sk: &[&Field], vis: &syn
                     self.0.key_between(#stored, #lo, #hi)
                 }
                 pub fn begins_with(self, v: impl ::core::convert::Into<#inner>) -> #full { self.0.key_begins(#stored, #ev) }
+                /// Matches stored values starting with `prefix`, which needn't be a whole value.
+                pub fn begins_with_prefix(self, prefix: impl ::core::convert::Into<::std::string::String>) -> #full {
+                    self.0.key_begins(#stored, ::core::result::Result::Ok(::wattdb::Value::String(prefix.into())))
+                }
             }
         });
     }

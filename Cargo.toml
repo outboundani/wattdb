@@ -14,6 +14,7 @@ repository = "https://github.com/outboundani/wattdb"
 wattdb = { path = "crates/wattdb", version = "0.1.0" }
 wattdb-derive = { path = "crates/wattdb-derive", version = "0.1.0" }
 wattdb-engine = { path = "crates/wattdb-engine", version = "0.1.0" }
+wattdb-integration = { path = "crates/wattdb-integration" }
 wattdb-vectors = { path = "crates/wattdb-vectors" }
 
 # Engine

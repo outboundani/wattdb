@@ -53,7 +53,27 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
     } else {
         "Every value, in declaration order."
     };
+    let serde = if c.serde {
+        quote! {
+            impl ::wattdb::__private::serde::Serialize for #name {
+                fn serialize<S: ::wattdb::__private::serde::Serializer>(&self, s: S) -> ::core::result::Result<S::Ok, S::Error> {
+                    s.serialize_str(self.as_str())
+                }
+            }
+
+            impl<'de> ::wattdb::__private::serde::Deserialize<'de> for #name {
+                fn deserialize<D: ::wattdb::__private::serde::Deserializer<'de>>(d: D) -> ::core::result::Result<Self, D::Error> {
+                    let s = <::std::string::String as ::wattdb::__private::serde::Deserialize>::deserialize(d)?;
+                    s.parse().map_err(<D::Error as ::wattdb::__private::serde::de::Error>::custom)
+                }
+            }
+        }
+    } else {
+        quote!()
+    };
     Ok(quote! {
+        #serde
+
         impl #name {
             #[doc = #values_doc]
             pub const VALUES: &'static [#name] = &[#(#name::#variants),*];
