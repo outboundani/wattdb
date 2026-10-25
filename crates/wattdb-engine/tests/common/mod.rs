@@ -3,10 +3,6 @@
 
 #![allow(dead_code)]
 
-use std::future::Future;
-use std::pin::pin;
-use std::task::{Context, Poll, Waker};
-
 use base64::Engine as _;
 use serde_json::{Value as Json, json};
 use wattdb_engine::keys::QueryType;
@@ -39,17 +35,6 @@ pub fn vectors() -> Vec<(Vector, Vec<(String, Model)>)> {
 
 pub fn model<'a>(models: &'a [(String, Model)], name: &str) -> Option<&'a Model> {
     models.iter().find(|(n, _)| n == name).map(|(_, m)| m)
-}
-
-/// Runs a future that never waits (the scripted runner answers at once).
-pub fn block_on<F: Future>(f: F) -> F::Output {
-    let mut f = pin!(f);
-    let mut cx = Context::from_waker(Waker::noop());
-    loop {
-        if let Poll::Ready(v) = f.as_mut().poll(&mut cx) {
-            return v;
-        }
-    }
 }
 
 pub fn is_object(j: &Json) -> bool {

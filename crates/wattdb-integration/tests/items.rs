@@ -23,7 +23,7 @@ async fn table(c: &aws_sdk_dynamodb::Client) -> String {
 }
 
 async fn setup() -> (aws_sdk_dynamodb::Client, String, ItemClient) {
-    let ddb = local::client();
+    let ddb = local::client().await;
     let t = table(&ddb).await;
     let items = ItemClient::new(&Config::new(ddb.clone()), &t).unwrap();
     (ddb, t, items)

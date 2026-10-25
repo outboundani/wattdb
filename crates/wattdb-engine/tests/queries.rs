@@ -36,7 +36,7 @@ fn check_params(m: &Model, table: &str, c: &Case) -> Result<(), String> {
     Ok(())
 }
 
-fn check_go(name: &str, m: &Model, table: &str, c: &Case) -> Result<(), String> {
+async fn check_go(name: &str, m: &Model, table: &str, c: &Case) -> Result<(), String> {
     let go = c.go.as_ref().unwrap();
     let o = query_options_of(c.go_options.as_ref(), true);
     let raw = o.query.raw;
@@ -55,14 +55,15 @@ fn check_go(name: &str, m: &Model, table: &str, c: &Case) -> Result<(), String> 
     let mut run = Scripted::new(&c.responses);
     if raw {
         // raw returns the first page as is
-        block_on(wattdb_engine::pager::Runner::page(
-            &mut run,
-            r.with_start_key(start.as_ref()),
-        ))
-        .unwrap();
+        wattdb_engine::pager::Runner::page(&mut run, r.with_start_key(start.as_ref()))
+            .await
+            .unwrap();
         return check_requests(name, &run.requests, &go.requests);
     }
-    let res = block_on(r.run(start, &o.run, &mut run)).map_err(|e| format!("run: {e}"))?;
+    let res = r
+        .run(start, &o.run, &mut run)
+        .await
+        .map_err(|e| format!("run: {e}"))?;
     check_requests(name, &run.requests, &go.requests)?;
 
     let result = go.result.as_ref().unwrap();
@@ -99,8 +100,8 @@ fn check_go(name: &str, m: &Model, table: &str, c: &Case) -> Result<(), String> 
     Ok(())
 }
 
-#[test]
-fn queries_match_vectors() {
+#[tokio::test]
+async fn queries_match_vectors() {
     let mut failures = Failures::default();
     let mut checked = 0;
     for (v, models) in vectors() {
@@ -126,7 +127,11 @@ fn queries_match_vectors() {
                 failures.check(check_params(m, &v.table, c).map_err(|e| format!("{name}: {e}")));
             }
             if c.go.is_some() {
-                failures.check(check_go(&name, m, &v.table, c).map_err(|e| format!("{name}: {e}")));
+                failures.check(
+                    check_go(&name, m, &v.table, c)
+                        .await
+                        .map_err(|e| format!("{name}: {e}")),
+                );
             }
         }
     }

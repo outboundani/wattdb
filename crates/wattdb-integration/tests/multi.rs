@@ -22,7 +22,7 @@ use wattdb_integration::taskapp::{
 type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 async fn setup() -> (Config, String, MemberClient, ProjectClient) {
-    let ddb = local::client();
+    let ddb = local::client().await;
     let table = local::new_table(
         &ddb,
         &[
@@ -396,7 +396,7 @@ async fn find_and_match() -> Result {
 
 #[tokio::test]
 async fn composite_index() -> Result {
-    let ddb = local::client();
+    let ddb = local::client().await;
     let table = local::table_name();
     let def = |n: &str| {
         AttributeDefinition::builder()

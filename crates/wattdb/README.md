@@ -65,6 +65,8 @@ async fn run(ddb: aws_sdk_dynamodb::Client) -> wattdb::Result<()> {
   `Task::title().gt(5)` doesn't compile, and neither do sort-key steps out of order.
 - **ElectroDB compatible:** the same stored bytes, identifiers (`__edb_e__`/`__edb_v__`), ownership
   filtering, validation and callback order, checked against vectors recorded from ElectroDB.
+- **Built on Tokio and the AWS SDK for Rust:** builders end in `async fn exec()`, and pages and
+  items stream as `futures::Stream`s.
 - **The full feature set:** queries, scans, updates and upserts, conditions, projections,
   hydration, pagination and streams, batches, transactions, collections (clustered and
   sub-collections too), composite indexes, find/match, conversions, parse, hooks and migrations

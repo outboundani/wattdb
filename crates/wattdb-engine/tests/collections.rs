@@ -7,8 +7,8 @@ use wattdb_engine::pager::encode_cursor;
 use wattdb_engine::query::{CollectionMember, Query};
 use wattdb_engine::{Attrs, Value, wire};
 
-#[test]
-fn collections_match_vectors() {
+#[tokio::test]
+async fn collections_match_vectors() {
     let mut failures = Failures::default();
     let mut checked = 0;
     for (v, models) in vectors() {
@@ -45,7 +45,7 @@ fn collections_match_vectors() {
                 q
             };
             checked += 1;
-            let r = (|| -> Result<(), String> {
+            let r: Result<(), String> = async {
                 if let Some(p) = &c.params {
                     let o = query_options_of(c.params_options.as_ref(), false);
                     let r = build()
@@ -66,7 +66,10 @@ fn collections_match_vectors() {
                     .build(&v.table, o.query)
                     .map_err(|e| e.to_string())?;
                 let mut run = Scripted::new(&c.responses);
-                let res = block_on(r.run(None, &o.run, &mut run)).map_err(|e| e.to_string())?;
+                let res = r
+                    .run(None, &o.run, &mut run)
+                    .await
+                    .map_err(|e| e.to_string())?;
                 check_requests(&case, &run.requests, &go.requests)?;
                 let mut data = Attrs::new();
                 for (i, mem) in members.iter().enumerate() {
@@ -94,7 +97,8 @@ fn collections_match_vectors() {
                     ));
                 }
                 Ok(())
-            })();
+            }
+            .await;
             failures.check(r);
         }
     }

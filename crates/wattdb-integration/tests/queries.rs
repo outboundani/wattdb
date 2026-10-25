@@ -13,7 +13,7 @@ type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// A task table seeded with tasks T1..T5 in project P1 and one in P2, plus
 /// a foreign item shaped like a task.
 async fn seeded() -> TaskClient {
-    let ddb = local::client();
+    let ddb = local::client().await;
     let table = local::new_table(
         &ddb,
         &[

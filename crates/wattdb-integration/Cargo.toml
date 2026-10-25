@@ -19,8 +19,8 @@ integration = ["dep:testcontainers"]
 aws-sdk-dynamodb.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-testcontainers = { workspace = true, optional = true, features = ["blocking"] }
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+testcontainers = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["macros", "net", "rt-multi-thread", "sync"] }
 wattdb.workspace = true
 
 [dev-dependencies]

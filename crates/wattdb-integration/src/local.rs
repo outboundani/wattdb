@@ -1,8 +1,8 @@
 //! A DynamoDB Local for the tests, and fresh tables in it.
 
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use aws_sdk_dynamodb::config::{BehaviorVersion, Credentials, Region};
 use aws_sdk_dynamodb::types::{
@@ -10,8 +10,9 @@ use aws_sdk_dynamodb::types::{
     ProjectionType, ScalarAttributeType,
 };
 use testcontainers::core::{IntoContainerPort, WaitFor};
-use testcontainers::runners::SyncRunner;
-use testcontainers::{Container, GenericImage, ImageExt};
+use testcontainers::runners::AsyncRunner;
+use testcontainers::{ContainerAsync, GenericImage, ImageExt};
+use tokio::sync::OnceCell;
 
 /// The pinned DynamoDB Local image (decision D63).
 pub const IMAGE: (&str, &str) = ("amazon/dynamodb-local", "3.3.1");
@@ -19,53 +20,53 @@ pub const IMAGE: (&str, &str) = ("amazon/dynamodb-local", "3.3.1");
 /// Overrides the container with a running DynamoDB Local.
 pub const ENDPOINT_VAR: &str = "WATTDB_DYNAMODB_ENDPOINT";
 
-static ENDPOINT: OnceLock<String> = OnceLock::new();
-/// The container lives as long as the test binary.
-static CONTAINER: Mutex<Option<Container<GenericImage>>> = Mutex::new(None);
+/// The endpoint, and the container behind it, which lives as long as the
+/// test binary.
+static LOCAL: OnceCell<(String, Option<ContainerAsync<GenericImage>>)> = OnceCell::const_new();
 
 /// The endpoint of DynamoDB Local, starting a container on first use
 /// unless `WATTDB_DYNAMODB_ENDPOINT` is set.
-pub fn endpoint() -> &'static str {
-    ENDPOINT.get_or_init(|| {
-        if let Ok(e) = std::env::var(ENDPOINT_VAR) {
-            return e;
-        }
-        // The blocking runner can't start inside the test's runtime.
-        std::thread::spawn(start)
-            .join()
-            .expect("starting DynamoDB Local")
-    })
+pub async fn endpoint() -> &'static str {
+    let (endpoint, _) = LOCAL
+        .get_or_init(|| async {
+            match std::env::var(ENDPOINT_VAR) {
+                Ok(e) => (e, None),
+                Err(_) => start().await,
+            }
+        })
+        .await;
+    endpoint
 }
 
-fn start() -> String {
+async fn start() -> (String, Option<ContainerAsync<GenericImage>>) {
     let c = GenericImage::new(IMAGE.0, IMAGE.1)
         .with_exposed_port(8000.tcp())
         .with_wait_for(WaitFor::message_on_stdout("CorsParams"))
         .with_cmd(["-jar", "DynamoDBLocal.jar", "-inMemory", "-sharedDb"])
         .start()
+        .await
         .expect("starting DynamoDB Local (is Docker running? or set WATTDB_DYNAMODB_ENDPOINT)");
-    let host = c.get_host().expect("container host");
-    let port = c.get_host_port_ipv4(8000).expect("container port");
-    *CONTAINER.lock().unwrap() = Some(c);
+    let host = c.get_host().await.expect("container host");
+    let port = c.get_host_port_ipv4(8000).await.expect("container port");
     // The log line can come just before the port accepts connections.
     let addr = format!("{host}:{port}");
     for _ in 0..100 {
-        if std::net::TcpStream::connect(&addr).is_ok() {
+        if tokio::net::TcpStream::connect(&addr).await.is_ok() {
             break;
         }
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
-    format!("http://{addr}")
+    (format!("http://{addr}"), Some(c))
 }
 
 /// A client for DynamoDB Local. Each test makes its own, since a client's
 /// connections belong to the runtime that opened them.
-pub fn client() -> aws_sdk_dynamodb::Client {
+pub async fn client() -> aws_sdk_dynamodb::Client {
     let conf = aws_sdk_dynamodb::Config::builder()
         .behavior_version(BehaviorVersion::latest())
         .region(Region::new("us-east-1"))
         .credentials_provider(Credentials::new("local", "local", None, None, "local"))
-        .endpoint_url(endpoint())
+        .endpoint_url(endpoint().await)
         .build();
     aws_sdk_dynamodb::Client::from_conf(conf)
 }

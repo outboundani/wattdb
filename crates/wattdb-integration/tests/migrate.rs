@@ -8,7 +8,7 @@ use wattdb_integration::taskv2;
 
 #[tokio::test]
 async fn migrate() -> Result<(), Box<dyn std::error::Error>> {
-    let ddb = local::client();
+    let ddb = local::client().await;
     let table = local::new_table(&ddb, &[]).await;
     let cfg = Config::new(ddb);
     let v1 = TaskClient::new(&cfg, &table)?;

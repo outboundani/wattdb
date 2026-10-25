@@ -2795,6 +2795,7 @@ dependencies = [
  "regex",
  "serde_json",
  "thiserror",
+ "tokio",
  "wattdb-vectors",
 ]
 
