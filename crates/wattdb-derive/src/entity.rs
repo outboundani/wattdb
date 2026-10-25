@@ -25,7 +25,7 @@ struct Pattern<'a> {
     sk: Vec<&'a Field>,
 }
 
-fn key_fields<'a>(fields: &'a [Field], k: &KeyOpts, names: &HashMap<String, String>) -> Result<Vec<&'a Field>> {
+fn key_fields<'a>(fields: &'a [Field], k: &KeyOpts) -> Result<Vec<&'a Field>> {
     let mut out = Vec::new();
     if let Some(c) = &k.composite {
         for id in c {
@@ -33,9 +33,11 @@ fn key_fields<'a>(fields: &'a [Field], k: &KeyOpts, names: &HashMap<String, Stri
         }
     } else if let Some(t) = &k.template {
         for name in template_vars(&t.value()) {
-            let id = Ident::new(&name, t.span());
-            stored_of(names, &id).map_err(|_| err(t.span(), format!("template names unknown field `{name}`")))?;
-            out.push(field_named(fields, &id)?);
+            let f = fields
+                .iter()
+                .find(|f| f.ident == name.as_str() || f.stored == name)
+                .ok_or_else(|| err(t.span(), format!("template names unknown field `{name}`")))?;
+            out.push(f);
         }
     }
     Ok(out)
@@ -61,7 +63,8 @@ fn template_vars(t: &str) -> Vec<String> {
     out
 }
 
-/// Rewrites `${rust_name}` template variables to stored names.
+/// Rewrites `${name}` template variables, Rust field or stored names, to
+/// stored names.
 fn convert_template(t: &syn::LitStr, names: &HashMap<String, String>) -> Result<String> {
     let mut out = String::new();
     let mut rest = t.value();
@@ -71,8 +74,11 @@ fn convert_template(t: &syn::LitStr, names: &HashMap<String, String>) -> Result<
         match after.find('}') {
             Some(j) => {
                 let name = &after[..j];
-                let stored =
-                    names.get(name).ok_or_else(|| err(t.span(), format!("template names unknown field `{name}`")))?;
+                // A Rust field name or a stored name.
+                let stored = names
+                    .get(name)
+                    .or_else(|| names.values().find(|s| *s == name))
+                    .ok_or_else(|| err(t.span(), format!("template names unknown field `{name}`")))?;
                 out.push_str(stored);
                 rest = after[j..].to_string();
             }
@@ -184,9 +190,9 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
     // Indexes.
     let mut patterns = Vec::new();
     for ix in &c.indexes {
-        let pk = key_fields(&fields, &ix.pk, &names)?;
+        let pk = key_fields(&fields, &ix.pk)?;
         let sk = match &ix.sk {
-            Some(k) => key_fields(&fields, k, &names)?,
+            Some(k) => key_fields(&fields, k)?,
             None => Vec::new(),
         };
         patterns.push(Pattern { opts: ix, pk, sk });

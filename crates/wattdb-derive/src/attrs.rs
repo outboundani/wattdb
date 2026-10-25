@@ -1,6 +1,7 @@
 //! Parsing `#[wattdb(...)]` attributes.
 
 use proc_macro2::Span;
+use syn::ext::IdentExt;
 use syn::meta::ParseNestedMeta;
 use syn::{Attribute, Expr, Ident, LitInt, LitStr, Result, Token, Type};
 
@@ -16,13 +17,12 @@ fn expr(meta: &ParseNestedMeta) -> Result<Expr> {
     meta.value()?.parse()
 }
 
+/// A parenthesized identifier list, possibly empty: `(a, b)` or `()`.
 fn idents(meta: &ParseNestedMeta) -> Result<Vec<Ident>> {
-    let mut out = Vec::new();
-    meta.parse_nested_meta(|m| {
-        out.push(m.path.require_ident()?.clone());
-        Ok(())
-    })?;
-    Ok(out)
+    let content;
+    syn::parenthesized!(content in meta.input);
+    let list = content.parse_terminated(Ident::parse_any, Token![,])?;
+    Ok(list.into_iter().collect())
 }
 
 fn strings(meta: &ParseNestedMeta) -> Result<Vec<String>> {
