@@ -501,11 +501,11 @@ impl<'m> Write<'m> {
                 ));
                 return self;
             }
-            if !value.is_undefined() {
-                if let Err(e) = get_validate(&a, value) {
-                    self.fail(e);
-                    return self;
-                }
+            if !value.is_undefined()
+                && let Err(e) = get_validate(&a, value)
+            {
+                self.fail(e);
+                return self;
             }
         }
         self
@@ -941,10 +941,10 @@ impl<'m> Write<'m> {
             if id == table.id {
                 out.index_key
                     .insert(ix.pk.field.clone(), pk.clone().unwrap_or(Value::Null));
-                if ix.has_sk {
-                    if let Some(sk) = sks.first() {
-                        out.index_key.insert(ix.sk.field.clone(), sk.clone());
-                    }
+                if ix.has_sk
+                    && let Some(sk) = sks.first()
+                {
+                    out.index_key.insert(ix.sk.field.clone(), sk.clone());
                 }
             } else if sks.is_empty() && ix.has_sk && ix.sk.composites.is_empty() {
                 // Sparse indexes whose sk has no composites still need the sk.
@@ -962,11 +962,11 @@ impl<'m> Write<'m> {
                 out.updated.insert(ix.pk.field.clone(), pk);
                 out.updated_order.push(ix.pk.field.clone());
             }
-            if ix.has_sk {
-                if let Some(sk) = sks.into_iter().next().filter(truthy) {
-                    out.updated.insert(ix.sk.field.clone(), sk);
-                    out.updated_order.push(ix.sk.field.clone());
-                }
+            if ix.has_sk
+                && let Some(sk) = sks.into_iter().next().filter(truthy)
+            {
+                out.updated.insert(ix.sk.field.clone(), sk);
+                out.updated_order.push(ix.sk.field.clone());
             }
         }
         Ok(out)

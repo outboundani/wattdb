@@ -9,7 +9,7 @@
 //! | `String` | string (S) | |
 //! | integers, `f32`, `f64` | number (N), exact text | |
 //! | `bool` | boolean | |
-//! | `Vec<T>` | list (L) | [`VecSet`] (also `#[wattdb(set)]`): a set, keeping order |
+//! | `Vec<T>` | list (L) | [`VecSet`] (also `#[wattdb(as_set)]`): a set, keeping order |
 //! | `BTreeSet<T>`, `HashSet<T>` | set (SS/NS), empty means missing | |
 //! | `chrono::DateTime<Utc>` | UTC RFC 3339, fixed 9-digit fraction (S) | [`JsIso`]: `Date.toISOString()` |
 //! | `std::time::Duration` | nanoseconds (N) | |
@@ -331,7 +331,7 @@ impl<T: FieldType + Eq + Hash> FieldType for HashSet<T> {
 
 /// Stores a `Vec<T>` as a DynamoDB set, keeping the order given and
 /// dropping duplicates on write; an empty vec is "missing". It's what
-/// `#[wattdb(set)]` picks.
+/// `#[wattdb(as_set)]` picks.
 pub struct VecSet;
 
 impl<T: FieldType> Codec<Vec<T>> for VecSet {

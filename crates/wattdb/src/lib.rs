@@ -47,6 +47,11 @@
 //! # Ok(()) }
 //! ```
 
+/// Compiles the README's examples.
+#[cfg(all(doctest, feature = "tracing"))]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
+
 mod attr;
 mod batch;
 mod client;

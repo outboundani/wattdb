@@ -231,10 +231,10 @@ fn is_type(a: &Attribute, v: &Value) -> (bool, Vec<FieldError>) {
     }
     match a.ty {
         AttrType::Enum => {
-            if let Value::String(s) = v {
-                if a.enum_values.iter().any(|e| e == s) {
-                    return (true, vec![]);
-                }
+            if let Value::String(s) = v
+                && a.enum_values.iter().any(|e| e == s)
+            {
+                return (true, vec![]);
             }
             (
                 false,

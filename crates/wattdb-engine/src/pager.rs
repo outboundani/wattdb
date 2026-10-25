@@ -383,10 +383,10 @@ impl<'m> QueryRequest<'m> {
             let keys = index_keys(m, ix, &pk, &[&sk], KeyOptions::default())?;
             let mut out = Attrs::new();
             out.insert(ix.pk.field.clone(), keys.pk.unwrap_or(Value::Null));
-            if ix.has_sk {
-                if let Some(sk) = keys.sk.into_iter().next() {
-                    out.insert(ix.sk.field.clone(), sk);
-                }
+            if ix.has_sk
+                && let Some(sk) = keys.sk.into_iter().next()
+            {
+                out.insert(ix.sk.field.clone(), sk);
             }
             Ok(out)
         };

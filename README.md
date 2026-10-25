@@ -33,6 +33,35 @@ admins, cursor, err := users.ByRole("acme").Role().Eq(user.RoleAdmin).Limit(50).
 
 Requires Go 1.27 or later (the builders use generic methods) and the AWS SDK for Go v2.
 
+### Rust
+
+wattdb is also a Rust library, with the same compatibility checked against the same vectors.
+Entities are structs with `#[derive(Entity)]` instead of generated code:
+
+```rust
+#[derive(Entity, Clone, Debug, Default)]
+#[wattdb(entity = "task", version = "1", service = "taskapp", rename_all = "camelCase")]
+#[wattdb(index(access_pattern = "primary",
+    pk(field = "pk", composite(project_id)), sk(field = "sk", composite(task_id))))]
+pub struct Task {
+    #[wattdb(required)]
+    pub project_id: String,
+    #[wattdb(required)]
+    pub task_id: String,
+    pub title: Option<String>,
+}
+
+let tasks = TaskClient::new(&cfg, "app-table")?;
+tasks.update(TaskKey { project_id: "p1".into(), task_id: "t1".into() })
+    .set(Task::title(), "Write docs")
+    .exec()
+    .await?;
+```
+
+See [crates/wattdb](crates/wattdb/README.md) for the Rust guide and [docs/rust.md](docs/rust.md)
+for how the Rust API maps onto the decisions below. It needs Rust 1.94.1 or later (the AWS SDK
+for Rust's minimum).
+
 ## Getting started
 
 ```sh
@@ -196,6 +225,7 @@ differs, mostly inputs ElectroDB rejects.
 - [docs/compat.md](docs/compat.md): every difference from ElectroDB.
 - [docs/design.md](docs/design.md): the ElectroDB behavior wattdb reproduces.
 - [docs/decisions.md](docs/decisions.md): the design decisions and their tradeoffs.
+- [docs/rust.md](docs/rust.md): the Rust port's layout, decisions and testing.
 
 ## Development
 
@@ -203,6 +233,9 @@ differs, mostly inputs ElectroDB rejects.
 go test ./...                                      # unit and vector tests, no Docker needed
 go test -tags integration ./integration/...        # DynamoDB Local via testcontainers
 go generate ./integration/... ./examples/...       # regenerate the checked-in code
+
+cargo test --workspace                                   # Rust: engine, derive and vector tests
+cargo test -p wattdb-integration --features integration  # Rust: DynamoDB Local via testcontainers
 ```
 
 The compatibility oracle is in `testdata/vectors`: JSON recorded by running ElectroDB 3.9.3 against a

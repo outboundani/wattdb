@@ -166,10 +166,10 @@ pub fn primary_key(m: &Model, attrs: &Attrs) -> Result<Attrs> {
     let keys = index_keys(m, ix, attrs, &[attrs], KeyOptions::default())?;
     let mut out = Attrs::new();
     out.insert(ix.pk.field.clone(), keys.pk.unwrap_or(Value::Null));
-    if ix.has_sk {
-        if let Some(sk) = keys.sk.into_iter().next() {
-            out.insert(ix.sk.field.clone(), sk);
-        }
+    if ix.has_sk
+        && let Some(sk) = keys.sk.into_iter().next()
+    {
+        out.insert(ix.sk.field.clone(), sk);
     }
     Ok(out)
 }
@@ -258,23 +258,22 @@ pub(crate) fn put_keys_deleted(
     let mut out = Attrs::new();
     for id in completed {
         let ix = &m.indexes[id];
-        if let Some(cond) = &ix.condition {
-            if !cond(&merged).map_err(Error::callback)? {
-                continue;
-            }
+        if let Some(cond) = &ix.condition
+            && !cond(&merged).map_err(Error::callback)?
+        {
+            continue;
         }
         let keys = index_keys(m, ix, &merged, &[&merged], KeyOptions::default())?;
-        if let Some(pk) = keys.pk {
-            if pk != Value::String(String::new()) {
-                out.insert(ix.pk.field.clone(), pk);
-            }
+        if let Some(pk) = keys.pk
+            && pk != Value::String(String::new())
+        {
+            out.insert(ix.pk.field.clone(), pk);
         }
-        if ix.has_sk {
-            if let Some(sk) = keys.sk.into_iter().next() {
-                if sk != Value::String(String::new()) {
-                    out.insert(ix.sk.field.clone(), sk);
-                }
-            }
+        if ix.has_sk
+            && let Some(sk) = keys.sk.into_iter().next()
+            && sk != Value::String(String::new())
+        {
+            out.insert(ix.sk.field.clone(), sk);
         }
     }
     Ok((out, deleted))

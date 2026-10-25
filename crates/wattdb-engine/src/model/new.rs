@@ -257,13 +257,14 @@ impl Builder {
             )));
         }
         let mut template = kd.template.clone();
-        if template.is_none() {
-            if let Some(c) = &kd.composite {
-                if c.len() == 1 && c[0] == kd.field && self.is_attribute_field(&kd.field) {
-                    // _optimizeIndexKey: an attribute used directly as the key field.
-                    template = Some(format!("${{{}}}", kd.field));
-                }
-            }
+        if template.is_none()
+            && let Some(c) = &kd.composite
+            && c.len() == 1
+            && c[0] == kd.field
+            && self.is_attribute_field(&kd.field)
+        {
+            // _optimizeIndexKey: an attribute used directly as the key field.
+            template = Some(format!("${{{}}}", kd.field));
         }
         if let Some(t) = &template {
             if !t.is_empty() {
@@ -275,15 +276,15 @@ impl Builder {
                     .filter(|l| !l.name.is_empty())
                     .map(|l| l.name.clone())
                     .collect();
-                if let (Some(_), Some(c)) = (&kd.template, &kd.composite) {
-                    if !string_array_match(c, &k.composites) {
-                        return Err(Error::invalid(format!(
-                            "access pattern {pattern:?}: {} template attributes {} don't match composite {}",
-                            key_type_name(kt),
-                            fmt_list(&k.composites),
-                            fmt_list(c)
-                        )));
-                    }
+                if let (Some(_), Some(c)) = (&kd.template, &kd.composite)
+                    && !string_array_match(c, &k.composites)
+                {
+                    return Err(Error::invalid(format!(
+                        "access pattern {pattern:?}: {} template attributes {} don't match composite {}",
+                        key_type_name(kt),
+                        fmt_list(&k.composites),
+                        fmt_list(c)
+                    )));
                 }
                 return Ok(k);
             }
@@ -783,10 +784,10 @@ impl Builder {
                         .iter()
                         .map(|l| {
                             let mut label = l.name.clone();
-                            if let Some(Some(al)) = self.attr(&l.name).map(|a| a.label.as_ref()) {
-                                if kt == KeyType::Sk || !al.is_empty() {
-                                    label = al.clone();
-                                }
+                            if let Some(Some(al)) = self.attr(&l.name).map(|a| a.label.as_ref())
+                                && (kt == KeyType::Sk || !al.is_empty())
+                            {
+                                label = al.clone();
                             }
                             label
                         })

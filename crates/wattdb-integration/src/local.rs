@@ -47,7 +47,15 @@ fn start() -> String {
     let host = c.get_host().expect("container host");
     let port = c.get_host_port_ipv4(8000).expect("container port");
     *CONTAINER.lock().unwrap() = Some(c);
-    format!("http://{host}:{port}")
+    // The log line can come just before the port accepts connections.
+    let addr = format!("{host}:{port}");
+    for _ in 0..100 {
+        if std::net::TcpStream::connect(&addr).is_ok() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    format!("http://{addr}")
 }
 
 /// A client for DynamoDB Local. Each test makes its own, since a client's

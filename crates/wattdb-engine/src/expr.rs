@@ -172,10 +172,10 @@ impl UpdateExpr {
     }
 
     fn unadd(&mut self, op: &str, expression: &str) {
-        if let Some(list) = self.ops.get_mut(op) {
-            if let Some(i) = list.iter().position(|e| e == expression) {
-                list.remove(i);
-            }
+        if let Some(list) = self.ops.get_mut(op)
+            && let Some(i) = list.iter().position(|e| e == expression)
+        {
+            list.remove(i);
         }
     }
 
@@ -228,10 +228,10 @@ impl UpdateExpr {
     pub fn build(&self) -> String {
         let mut parts = Vec::new();
         for op in UPDATE_OP_ORDER {
-            if let Some(list) = self.ops.get(op) {
-                if !list.is_empty() {
-                    parts.push(format!("{} {}", op.to_uppercase(), list.join(", ")));
-                }
+            if let Some(list) = self.ops.get(op)
+                && !list.is_empty()
+            {
+                parts.push(format!("{} {}", op.to_uppercase(), list.join(", ")));
             }
         }
         parts.join(" ")
