@@ -889,11 +889,11 @@ impl<'m> Write<'m> {
 
         let mut types = complete.types.clone();
         let mut order = complete.order.clone();
-        if !types.contains_key(&table.id) {
+        if let std::collections::hash_map::Entry::Vacant(e) = types.entry(table.id) {
             let mut t = std::collections::BTreeMap::new();
             t.insert(KeyType::Pk, "pk".to_string());
             t.insert(KeyType::Sk, "sk".to_string());
-            types.insert(table.id, t);
+            e.insert(t);
             order.push(table.id);
         }
         let attrs = merge_attrs(&[&composites, &defined, &key_attrs]);

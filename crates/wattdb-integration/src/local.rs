@@ -31,7 +31,9 @@ pub fn endpoint() -> &'static str {
             return e;
         }
         // The blocking runner can't start inside the test's runtime.
-        std::thread::spawn(start).join().expect("starting DynamoDB Local")
+        std::thread::spawn(start)
+            .join()
+            .expect("starting DynamoDB Local")
     })
 }
 
@@ -73,7 +75,13 @@ pub struct Gsi {
 impl Gsi {
     /// A GSI projecting every attribute.
     pub fn new(name: &'static str, pk: &'static str, sk: &'static str) -> Self {
-        Gsi { name, pk, sk, projection: ProjectionType::All, include: Vec::new() }
+        Gsi {
+            name,
+            pk,
+            sk,
+            projection: ProjectionType::All,
+            include: Vec::new(),
+        }
     }
 
     pub fn projection(mut self, p: ProjectionType, include: &[&'static str]) -> Self {
@@ -88,12 +96,25 @@ impl Gsi {
 pub fn table_name() -> String {
     static N: AtomicU64 = AtomicU64::new(0);
     static RUN: OnceLock<u128> = OnceLock::new();
-    let run = RUN.get_or_init(|| SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos());
-    format!("t{run}-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed))
+    let run = RUN.get_or_init(|| {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+    });
+    format!(
+        "t{run}-{}-{}",
+        std::process::id(),
+        N.fetch_add(1, Ordering::Relaxed)
+    )
 }
 
 fn key(name: &str, kt: KeyType) -> KeySchemaElement {
-    KeySchemaElement::builder().attribute_name(name).key_type(kt).build().unwrap()
+    KeySchemaElement::builder()
+        .attribute_name(name)
+        .key_type(kt)
+        .build()
+        .unwrap()
 }
 
 /// Creates a fresh table keyed by `pk`/`sk` with the given GSIs.

@@ -8,7 +8,7 @@
 //! cursors wattdb reads and writes are the ones ElectroDB would, so Rust,
 //! Go and TypeScript services can share a table.
 //!
-//! ```ignore
+//! ```
 //! use wattdb::{Config, Entity, Enum};
 //!
 //! #[derive(Entity, Clone, Debug)]
@@ -26,13 +26,13 @@
 //!     pub points: Option<i64>,
 //! }
 //!
-//! #[derive(Enum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+//! #[derive(Enum, Clone, Debug, Default, PartialEq, Eq)]
 //! #[wattdb(rename_all = "lowercase")]
 //! pub enum Status { #[default] Open, Done }
 //!
 //! # async fn run(ddb: aws_sdk_dynamodb::Client) -> wattdb::Result<()> {
 //! let cfg = Config::new(ddb);
-//! let tasks = Task::client(&cfg, "app-table")?;
+//! let tasks = TaskClient::new(&cfg, "app-table")?;
 //! tasks.create(TaskInput { project_id: "p1".into(), task_id: "t1".into(), ..Default::default() }).exec().await?;
 //! tasks.update(TaskKey { project_id: "p1".into(), task_id: "t1".into() })
 //!     .set(Task::status(), Status::Done)
@@ -41,6 +41,9 @@
 //!     .exec()
 //!     .await?;
 //! let page = tasks.by_assignee("ada").status().eq(Status::Open).limit(50).exec().await?;
+//! for task in page.items {
+//!     println!("{} {}", task.task_id, task.status);
+//! }
 //! # Ok(()) }
 //! ```
 

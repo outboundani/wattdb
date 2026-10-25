@@ -56,21 +56,41 @@ impl HttpConnector for Fake {
             .unwrap_or_default()
             .trim_start_matches("DynamoDB_20120810.")
             .to_string();
-        let body: Json = serde_json::from_slice(request.body().bytes().unwrap_or_default()).unwrap_or(Json::Null);
+        let body: Json = serde_json::from_slice(request.body().bytes().unwrap_or_default())
+            .unwrap_or(Json::Null);
         let resp = {
             let mut st = self.0.lock().unwrap();
-            st.sent.push(Sent { target: target.clone(), body });
-            if st.responses.is_empty() { default_response(&target) } else { st.responses.remove(0) }
+            st.sent.push(Sent {
+                target: target.clone(),
+                body,
+            });
+            if st.responses.is_empty() {
+                default_response(&target)
+            } else {
+                st.responses.remove(0)
+            }
         };
-        let status: u16 = if resp.get("__type").is_some() { 400 } else { 200 };
-        let mut r = HttpResponse::new(status.try_into().unwrap(), SdkBody::from(serde_json::to_vec(&resp).unwrap()));
-        r.headers_mut().insert("content-type", "application/x-amz-json-1.0");
+        let status: u16 = if resp.get("__type").is_some() {
+            400
+        } else {
+            200
+        };
+        let mut r = HttpResponse::new(
+            status.try_into().unwrap(),
+            SdkBody::from(serde_json::to_vec(&resp).unwrap()),
+        );
+        r.headers_mut()
+            .insert("content-type", "application/x-amz-json-1.0");
         HttpConnectorFuture::ready(Ok(r))
     }
 }
 
 impl HttpClient for Fake {
-    fn http_connector(&self, _: &HttpConnectorSettings, _: &RuntimeComponents) -> SharedHttpConnector {
+    fn http_connector(
+        &self,
+        _: &HttpConnectorSettings,
+        _: &RuntimeComponents,
+    ) -> SharedHttpConnector {
         SharedHttpConnector::new(self.clone())
     }
 }
@@ -99,7 +119,11 @@ pub struct Recorded {
 
 pub fn recorded(vector: &str, case: &str) -> Recorded {
     let v = wattdb_vectors::load_named(vector);
-    let c = v.cases.iter().find(|c| c.name == case).unwrap_or_else(|| panic!("no case {case:?} in {vector}"));
+    let c = v
+        .cases
+        .iter()
+        .find(|c| c.name == case)
+        .unwrap_or_else(|| panic!("no case {case:?} in {vector}"));
     Recorded {
         responses: c.responses.clone(),
         requests: c.requests().to_vec(),
@@ -116,7 +140,13 @@ pub fn config(rc: &Recorded) -> (wattdb::Config, Fake) {
 /// Compares the requests sent with the recorded ones, as JSON. `ignore`
 /// names top-level fields to skip (such as a random token).
 pub fn check_requests(got: &[Sent], want: &[wattdb_vectors::Request], ignore: &[&str]) {
-    assert_eq!(got.len(), want.len(), "sent {} requests, ElectroDB sent {}: {got:#?}", got.len(), want.len());
+    assert_eq!(
+        got.len(),
+        want.len(),
+        "sent {} requests, ElectroDB sent {}: {got:#?}",
+        got.len(),
+        want.len()
+    );
     for (i, (g, w)) in got.iter().zip(want).enumerate() {
         let strip = |j: &Json| {
             let mut j = j.clone();

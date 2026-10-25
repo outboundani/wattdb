@@ -25,7 +25,13 @@ async fn seeded() -> TaskClient {
     )
     .await;
     let tasks = TaskClient::new(&Config::new(ddb.clone()), &table).unwrap();
-    let t = |project: &str, id: &str, title: &str, status: Status, priority: i64, day: u8, assignee: Option<&str>| {
+    let t = |project: &str,
+             id: &str,
+             title: &str,
+             status: Status,
+             priority: i64,
+             day: u8,
+             assignee: Option<&str>| {
         TaskInput {
             project_id: project.into(),
             task_id: id.into(),
@@ -74,11 +80,22 @@ async fn queries() -> Result {
     let c = seeded().await;
 
     let items = c.primary("P1").exec().await?.items;
-    assert_eq!(ids(&items), ["T1", "T2", "T3", "T4", "T5"], "primary (foreign item dropped)");
+    assert_eq!(
+        ids(&items),
+        ["T1", "T2", "T3", "T4", "T5"],
+        "primary (foreign item dropped)"
+    );
     assert_eq!(items[0].secret, None, "hidden attribute returned");
     let items = c.primary("P1").task_id().eq("T3").exec().await?.items;
     assert_eq!(ids(&items), ["T3"], "full key");
-    let items = c.by_status("P1").status().eq(Status::Open).into_query().exec().await?.items;
+    let items = c
+        .by_status("P1")
+        .status()
+        .eq(Status::Open)
+        .into_query()
+        .exec()
+        .await?
+        .items;
     assert_eq!(ids(&items), ["T1", "T2", "T4"], "partial sk");
     // The default "keys" comparison compares built key strings, as
     // ElectroDB does: "...#priority_00002#createdat_..." sorts after
@@ -86,26 +103,81 @@ async fn queries() -> Result {
     // excludes T2; lte(5) doesn't bound status, so "done" items (which sort
     // before "open") match too.
     let open = || c.by_status("P1").status().eq(Status::Open);
-    assert_eq!(ids(&open().priority().gt(2).exec().await?.items), ["T1", "T2", "T4"], "gt");
-    assert_eq!(ids(&open().priority().between(2, 5).exec().await?.items), ["T1"], "between");
-    assert_eq!(ids(&open().priority().lte(5).desc().exec().await?.items), ["T1", "T5", "T3"], "lte desc");
+    assert_eq!(
+        ids(&open().priority().gt(2).exec().await?.items),
+        ["T1", "T2", "T4"],
+        "gt"
+    );
+    assert_eq!(
+        ids(&open().priority().between(2, 5).exec().await?.items),
+        ["T1"],
+        "between"
+    );
+    assert_eq!(
+        ids(&open().priority().lte(5).desc().exec().await?.items),
+        ["T1", "T5", "T3"],
+        "lte desc"
+    );
     // With compare attributes, the composites are also filtered.
     let attrs = |q: wattdb::Query<Task>| q.compare(CompareMode::Attributes);
-    assert_eq!(ids(&attrs(open().priority().gt(2)).exec().await?.items), ["T2", "T4"], "gt, attributes");
-    assert_eq!(ids(&attrs(open().priority().lte(5)).exec().await?.items), ["T1"], "lte, attributes");
-    assert_eq!(ids(&attrs(open().priority().gte(5)).exec().await?.items), ["T2", "T4"], "gte, attributes");
-    let items = c.by_status("P1").status().begins_with_prefix("d").exec().await?.items;
+    assert_eq!(
+        ids(&attrs(open().priority().gt(2)).exec().await?.items),
+        ["T2", "T4"],
+        "gt, attributes"
+    );
+    assert_eq!(
+        ids(&attrs(open().priority().lte(5)).exec().await?.items),
+        ["T1"],
+        "lte, attributes"
+    );
+    assert_eq!(
+        ids(&attrs(open().priority().gte(5)).exec().await?.items),
+        ["T2", "T4"],
+        "gte, attributes"
+    );
+    let items = c
+        .by_status("P1")
+        .status()
+        .begins_with_prefix("d")
+        .exec()
+        .await?
+        .items;
     assert_eq!(ids(&items), ["T3", "T5"], "begins on the first composite");
-    let items = c.by_status("P1").where_(Task::title().begins_with("G")).exec().await?.items;
+    let items = c
+        .by_status("P1")
+        .where_(Task::title().begins_with("G"))
+        .exec()
+        .await?
+        .items;
     assert_eq!(ids(&items), ["T3"], "filter");
     let items = c.by_status_cluster(Status::Done).exec().await?.items;
     assert_eq!(ids(&items), ["T3", "T5"], "clustered");
 
-    let parts = c.by_status("P1").status().eq(Status::Done).into_query().attributes(Task::title()).exec().await?.items;
-    assert!(parts.len() == 2 && parts[0].title.is_some() && parts[0].task_id.is_none(), "attributes: {parts:?}");
-    let keyed = c.primary("P1").task_id().eq("T1").include_keys().exec().await?.items;
+    let parts = c
+        .by_status("P1")
+        .status()
+        .eq(Status::Done)
+        .into_query()
+        .attributes(Task::title())
+        .exec()
+        .await?
+        .items;
     assert!(
-        keyed.len() == 1 && keyed[0].keys.contains_key("pk") && keyed[0].keys.contains_key("__edb_e__"),
+        parts.len() == 2 && parts[0].title.is_some() && parts[0].task_id.is_none(),
+        "attributes: {parts:?}"
+    );
+    let keyed = c
+        .primary("P1")
+        .task_id()
+        .eq("T1")
+        .include_keys()
+        .exec()
+        .await?
+        .items;
+    assert!(
+        keyed.len() == 1
+            && keyed[0].keys.contains_key("pk")
+            && keyed[0].keys.contains_key("__edb_e__"),
         "include_keys: {keyed:?}"
     );
     let outs = c.primary("P1").raw().await?;
@@ -125,10 +197,19 @@ async fn pagination() -> Result {
     let page = c.primary("P1").limit(2).cursor(cur).exec().await?;
     assert_eq!(ids(&page.items), ["T3", "T4"], "second page");
     let page = c.primary("P1").limit(2).all_pages().exec().await?;
-    assert_eq!(ids(&page.items), ["T1", "T2", "T3", "T4", "T5"], "all pages");
+    assert_eq!(
+        ids(&page.items),
+        ["T1", "T2", "T3", "T4", "T5"],
+        "all pages"
+    );
     let page = c.primary("P1").limit(2).count(3).exec().await?;
     assert_eq!(ids(&page.items), ["T1", "T2", "T3"], "count");
-    let page = c.primary("P1").cursor(page.cursor).all_pages().exec().await?;
+    let page = c
+        .primary("P1")
+        .cursor(page.cursor)
+        .all_pages()
+        .exec()
+        .await?;
     assert_eq!(ids(&page.items), ["T4", "T5"], "after count");
 
     let pages: Vec<Vec<String>> = c
@@ -138,8 +219,17 @@ async fn pagination() -> Result {
         .map(|p| p.unwrap().items.into_iter().map(|t| t.task_id).collect())
         .collect()
         .await;
-    assert!(pages.len() >= 3 && pages[0] == ["T1", "T2"], "pages = {pages:?}");
-    let all: Vec<Task> = c.by_status("P1").limit(1).all().map(|t| t.unwrap()).collect().await;
+    assert!(
+        pages.len() >= 3 && pages[0] == ["T1", "T2"],
+        "pages = {pages:?}"
+    );
+    let all: Vec<Task> = c
+        .by_status("P1")
+        .limit(1)
+        .all()
+        .map(|t| t.unwrap())
+        .collect()
+        .await;
     assert_eq!(all.len(), 5, "all = {:?}", ids(&all));
 
     // A cursor in ElectroDB's own form.
@@ -147,8 +237,16 @@ async fn pagination() -> Result {
     let cur = Cursor::new(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(js));
     let page = c.primary("P1").cursor(cur).all_pages().exec().await?;
     assert_eq!(ids(&page.items), ["T3", "T4", "T5"], "ElectroDB cursor");
-    let err = c.primary("P1").cursor(Cursor::new("%%%")).exec().await.unwrap_err();
-    assert!(matches!(err, Error::InvalidCursor(_)), "bad cursor: {err:?}");
+    let err = c
+        .primary("P1")
+        .cursor(Cursor::new("%%%"))
+        .exec()
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, Error::InvalidCursor(_)),
+        "bad cursor: {err:?}"
+    );
     Ok(())
 }
 
@@ -159,12 +257,24 @@ async fn index_projections() -> Result {
     // A keys-only index can't check identifiers; items come back empty
     // unless hydrated.
     let items = c.by_assignee("U1").into_query().exec().await?.items;
-    assert!(items.len() == 2 && items[0].task_id.is_empty(), "keys-only query: {items:?}");
-    let items = c.by_assignee("U1").into_query().hydrate().exec().await?.items;
+    assert!(
+        items.len() == 2 && items[0].task_id.is_empty(),
+        "keys-only query: {items:?}"
+    );
+    let items = c
+        .by_assignee("U1")
+        .into_query()
+        .hydrate()
+        .exec()
+        .await?
+        .items;
     assert_eq!(ids(&items), ["T1", "T2"], "hydrated");
     assert_eq!(items[0].title.as_deref(), Some("Alpha"));
     let items = c.by_title("P1").into_query().exec().await?.items;
-    assert!(items.len() == 5 && items[0].title.is_some(), "include-projection query: {items:?}");
+    assert!(
+        items.len() == 5 && items[0].title.is_some(),
+        "include-projection query: {items:?}"
+    );
     Ok(())
 }
 
@@ -174,7 +284,13 @@ async fn scans() -> Result {
 
     let items = c.scan().all_pages().exec().await?.items;
     assert_eq!(items.len(), 6, "scan: {:?}", ids(&items));
-    let items = c.scan().where_(Task::status().eq(Status::Done)).all_pages().exec().await?.items;
+    let items = c
+        .scan()
+        .where_(Task::status().eq(Status::Done))
+        .all_pages()
+        .exec()
+        .await?
+        .items;
     assert_eq!(items.len(), 2, "filtered scan: {:?}", ids(&items));
     let items = c.scan_by_status_cluster().all_pages().exec().await?.items;
     assert_eq!(items.len(), 6, "index scan: {:?}", ids(&items));

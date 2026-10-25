@@ -41,8 +41,15 @@ mod attr_gsi {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "project", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "projectId", composite(project_id))))]
-    #[wattdb(index(access_pattern = "byOwner", index = "ownerId", pk(field = "ownerId", composite(owner_id))))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "projectId", composite(project_id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byOwner",
+        index = "ownerId",
+        pk(field = "ownerId", composite(owner_id))
+    ))]
     pub struct Project {
         #[wattdb(required)]
         pub project_id: String,
@@ -58,10 +65,25 @@ mod numeric_gsi {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "member", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "memberId", composite(member_id))))]
-    #[wattdb(index(access_pattern = "byTeamNumber", index = "teamNumber", pk(field = "teamNumber", composite(team_number))))]
-    #[wattdb(index(access_pattern = "byRank", index = "gsi1", pk(field = "gsi1pk", composite(rank), cast = "number")))]
-    #[wattdb(index(access_pattern = "byLevelString", index = "gsi2", pk(field = "gsi2pk", composite(level), cast = "string")))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "memberId", composite(member_id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byTeamNumber",
+        index = "teamNumber",
+        pk(field = "teamNumber", composite(team_number))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byRank",
+        index = "gsi1",
+        pk(field = "gsi1pk", composite(rank), cast = "number")
+    ))]
+    #[wattdb(index(
+        access_pattern = "byLevelString",
+        index = "gsi2",
+        pk(field = "gsi2pk", composite(level), cast = "string")
+    ))]
     pub struct Member {
         #[wattdb(required)]
         pub member_id: String,
@@ -78,7 +100,10 @@ mod numeric_pk {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "counter", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "counterId", composite(counter_id))))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "counterId", composite(counter_id))
+    ))]
     pub struct Counter {
         #[wattdb(required)]
         pub counter_id: i64,
@@ -91,8 +116,15 @@ mod template_none {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "attempt", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "pk", composite(project_id, task_id, user_id),
-        template = "attempt#${projectId}#${taskId}#${userId}", casing = "none")))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(
+            field = "pk",
+            composite(project_id, task_id, user_id),
+            template = "attempt#${projectId}#${taskId}#${userId}",
+            casing = "none"
+        )
+    ))]
     pub struct Attempt {
         #[wattdb(required)]
         pub project_id: String,
@@ -112,7 +144,10 @@ mod template_lower {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "label", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "identifier", composite(name), template = "label#${name}")))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "identifier", composite(name), template = "label#${name}")
+    ))]
     pub struct Label {
         #[wattdb(required)]
         pub name: String,
@@ -134,7 +169,11 @@ mod attr_pk_sk {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "event", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "taskId", composite(task_id)), sk(field = "seq", composite(seq))))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "taskId", composite(task_id)),
+        sk(field = "seq", composite(seq))
+    ))]
     pub struct Event {
         #[wattdb(required)]
         pub task_id: String,
@@ -183,10 +222,23 @@ mod standard {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "user", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "pk", composite(org_id)), sk(field = "sk", composite(user_id))))]
-    #[wattdb(index(access_pattern = "byEmail", index = "gsi1", pk(field = "gsi1pk", composite(email)), sk(field = "gsi1sk", composite())))]
-    #[wattdb(index(access_pattern = "byRole", index = "gsi2", pk(field = "gsi2pk", composite(org_id)),
-        sk(field = "gsi2sk", composite(role, user_id))))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "pk", composite(org_id)),
+        sk(field = "sk", composite(user_id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byEmail",
+        index = "gsi1",
+        pk(field = "gsi1pk", composite(email)),
+        sk(field = "gsi1sk", composite())
+    ))]
+    #[wattdb(index(
+        access_pattern = "byRole",
+        index = "gsi2",
+        pk(field = "gsi2pk", composite(org_id)),
+        sk(field = "gsi2sk", composite(role, user_id))
+    ))]
     pub struct User {
         #[wattdb(required)]
         pub org_id: String,
@@ -239,7 +291,11 @@ mod deep_updates {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "settings", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "pk", composite(user_id)), sk(field = "sk", composite())))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "pk", composite(user_id)),
+        sk(field = "sk", composite())
+    ))]
     pub struct Settings {
         #[wattdb(required)]
         pub user_id: String,
@@ -275,9 +331,17 @@ mod mutations {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "item", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "pk", composite(org_id)), sk(field = "sk", composite(item_id))))]
-    #[wattdb(index(access_pattern = "byStatus", index = "gsi1", pk(field = "gsi1pk", composite(org_id)),
-        sk(field = "gsi1sk", composite(status, created_at))))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "pk", composite(org_id)),
+        sk(field = "sk", composite(item_id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byStatus",
+        index = "gsi1",
+        pk(field = "gsi1pk", composite(org_id)),
+        sk(field = "gsi1sk", composite(status, created_at))
+    ))]
     #[wattdb(index(access_pattern = "byOwner", index = "gsi2", condition = owned,
         pk(field = "gsi2pk", composite(owner_id)), sk(field = "gsi2sk", composite())))]
     pub struct Item {
@@ -307,7 +371,11 @@ mod numbers {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "metric", version = "1", service = super::TASKAPP)]
-    #[wattdb(index(access_pattern = "primary", pk(field = "pk", composite(name)), sk(field = "sk", composite(value))))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "pk", composite(name)),
+        sk(field = "sk", composite(value))
+    ))]
     pub struct Metric {
         #[wattdb(required)]
         pub name: String,
@@ -328,12 +396,31 @@ mod probes {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "User", version = "1", service = "TaskApp")]
-    #[wattdb(index(access_pattern = "rec", pk(field = "pk", composite(org)), sk(field = "sk", composite(id))))]
-    #[wattdb(index(access_pattern = "byN", index = "gsi1", sub_collections("c1", "c2"),
-        pk(field = "gsi1pk", composite(org)), sk(field = "gsi1sk", composite(n, b))))]
-    #[wattdb(index(access_pattern = "cl", index = "gsi2", clustered, collection = "cc",
-        pk(field = "gsi2pk", composite(status)), sk(field = "gsi2sk", composite(id))))]
-    #[wattdb(index(access_pattern = "nosk", index = "gsi3", pk(field = "gsi3pk", composite(id))))]
+    #[wattdb(index(
+        access_pattern = "rec",
+        pk(field = "pk", composite(org)),
+        sk(field = "sk", composite(id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byN",
+        index = "gsi1",
+        sub_collections("c1", "c2"),
+        pk(field = "gsi1pk", composite(org)),
+        sk(field = "gsi1sk", composite(n, b))
+    ))]
+    #[wattdb(index(
+        access_pattern = "cl",
+        index = "gsi2",
+        clustered,
+        collection = "cc",
+        pk(field = "gsi2pk", composite(status)),
+        sk(field = "gsi2sk", composite(id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "nosk",
+        index = "gsi3",
+        pk(field = "gsi3pk", composite(id))
+    ))]
     pub struct User {
         pub id: Option<String>,
         #[wattdb(label = "O")]
@@ -362,15 +449,38 @@ mod queries {
 
     #[derive(Entity, Clone, Debug, Default, PartialEq)]
     #[wattdb(entity = "task", version = "1", service = super::TASKAPP, rename_all = "camelCase")]
-    #[wattdb(index(access_pattern = "primary", pk(field = "pk", composite(project_id)), sk(field = "sk", composite(task_id))))]
-    #[wattdb(index(access_pattern = "byStatus", index = "gsi1", pk(field = "gsi1pk", composite(project_id)),
-        sk(field = "gsi1sk", composite(status, priority, created_at))))]
-    #[wattdb(index(access_pattern = "byAssignee", index = "gsi2", projection = "keys_only",
-        pk(field = "gsi2pk", composite(assignee)), sk(field = "gsi2sk", composite(task_id))))]
-    #[wattdb(index(access_pattern = "byStatusCluster", index = "gsi3", clustered,
-        pk(field = "gsi3pk", composite(status)), sk(field = "gsi3sk", composite(project_id, task_id))))]
-    #[wattdb(index(access_pattern = "byTitle", index = "gsi4", projection(title),
-        pk(field = "gsi4pk", composite(project_id)), sk(field = "gsi4sk", composite(title))))]
+    #[wattdb(index(
+        access_pattern = "primary",
+        pk(field = "pk", composite(project_id)),
+        sk(field = "sk", composite(task_id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byStatus",
+        index = "gsi1",
+        pk(field = "gsi1pk", composite(project_id)),
+        sk(field = "gsi1sk", composite(status, priority, created_at))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byAssignee",
+        index = "gsi2",
+        projection = "keys_only",
+        pk(field = "gsi2pk", composite(assignee)),
+        sk(field = "gsi2sk", composite(task_id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byStatusCluster",
+        index = "gsi3",
+        clustered,
+        pk(field = "gsi3pk", composite(status)),
+        sk(field = "gsi3sk", composite(project_id, task_id))
+    ))]
+    #[wattdb(index(
+        access_pattern = "byTitle",
+        index = "gsi4",
+        projection(title),
+        pk(field = "gsi4pk", composite(project_id)),
+        sk(field = "gsi4sk", composite(title))
+    ))]
     pub struct Task {
         #[wattdb(required)]
         pub project_id: String,
@@ -434,7 +544,12 @@ fn derived_models_match_vector_models() {
         }
     }
     assert!(failures.is_empty(), "{}", failures.join("\n"));
-    assert_eq!(seen, ported.len(), "checked {seen} entities, ported {}", ported.len());
+    assert_eq!(
+        seen,
+        ported.len(),
+        "checked {seen} entities, ported {}",
+        ported.len()
+    );
 }
 
 /// Renders a model's public parts, with callbacks shown as present or
@@ -442,7 +557,12 @@ fn derived_models_match_vector_models() {
 /// name is always the field (D12), while a JS model's may differ.
 fn dump(m: &Model) -> String {
     let mut b = String::new();
-    write!(b, "{} {} {} {:?} [", m.entity, m.version, m.service, m.identifiers).unwrap();
+    write!(
+        b,
+        "{} {} {} {:?} [",
+        m.entity, m.version, m.service, m.identifiers
+    )
+    .unwrap();
     for a in &m.attributes {
         attribute(&mut b, a);
     }

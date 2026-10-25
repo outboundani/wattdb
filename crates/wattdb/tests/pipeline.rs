@@ -16,8 +16,14 @@ use wattdb::engine::wire;
 /// Recorded inputs the typed API handles differently from ElectroDB, by
 /// design, keyed by case name.
 const DIVERGENCES: &[(&str, &str)] = &[
-    ("null for a string", "Rust can't pass JS null for a string; None means missing"),
-    ("empty set", "D18: an empty set is written as missing, where JS throws"),
+    (
+        "null for a string",
+        "Rust can't pass JS null for a string; None means missing",
+    ),
+    (
+        "empty set",
+        "D18: an empty set is written as missing, where JS throws",
+    ),
     (
         "list item missing a required property",
         "D17: required map properties are plain values, so the input can't omit one",
@@ -49,8 +55,12 @@ where
     let v = wattdb_vectors::load_named(vector);
     let (mut checked, mut failures) = (0, Vec::new());
     for c in &v.cases {
-        let Some(first) = c.chain.first() else { continue };
-        if (first.method != "put" && first.method != "create") || !first.args.first().is_some_and(Json::is_object) {
+        let Some(first) = c.chain.first() else {
+            continue;
+        };
+        if (first.method != "put" && first.method != "create")
+            || !first.args.first().is_some_and(Json::is_object)
+        {
             continue;
         }
         if DIVERGENCES.iter().any(|(n, _)| *n == c.name) {
@@ -81,14 +91,22 @@ where
             (None, Ok(item), Some(want)) => {
                 let got = wire::attrs_to_json(&item);
                 if &got != want {
-                    failures.push(format!("{}: items differ\n got: {got}\nwant: {want}", c.name));
+                    failures.push(format!(
+                        "{}: items differ\n got: {got}\nwant: {want}",
+                        c.name
+                    ));
                 }
             }
             (None, Ok(_), None) => unreachable!(),
         }
         checked += 1;
     }
-    assert!(failures.is_empty(), "{vector}: {} of {checked} puts failed:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{vector}: {} of {checked} puts failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
     assert!(checked > 0, "{vector}: no put cases checked");
     eprintln!("{vector}: checked {checked} puts");
     checked
@@ -98,7 +116,9 @@ where
 fn same(a: &Json, b: &Json) -> bool {
     match (a, b) {
         (Json::Number(x), Json::Number(y)) => x.as_f64() == y.as_f64(),
-        (Json::Array(x), Json::Array(y)) => x.len() == y.len() && x.iter().zip(y).all(|(a, b)| same(a, b)),
+        (Json::Array(x), Json::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(a, b)| same(a, b))
+        }
         (Json::Object(x), Json::Object(y)) => {
             x.len() == y.len() && x.iter().all(|(k, v)| y.get(k).is_some_and(|w| same(v, w)))
         }
@@ -111,22 +131,39 @@ fn check_reads<E: Entity + Serialize>(vector: &str) -> usize {
     let v = wattdb_vectors::load_named(vector);
     let (mut checked, mut failures) = (0, Vec::new());
     for c in &v.cases {
-        let Some(first) = c.chain.first() else { continue };
-        let Some(stored) = c.responses.first().and_then(|r| r.get("Item")) else { continue };
-        let Some(result) = c.go.as_ref().and_then(|g| g.result.as_ref()) else { continue };
+        let Some(first) = c.chain.first() else {
+            continue;
+        };
+        let Some(stored) = c.responses.first().and_then(|r| r.get("Item")) else {
+            continue;
+        };
+        let Some(result) = c.go.as_ref().and_then(|g| g.result.as_ref()) else {
+            continue;
+        };
         let opts = c.go_options.clone().unwrap_or_default();
         if first.method != "get" || opts["data"] == "includeKeys" || !opts["attributes"].is_null() {
             continue;
         }
-        let formatted = def.format_item(&wattdb_vectors::attribute_map(stored)).unwrap().expect("an owned item");
+        let formatted = def
+            .format_item(&wattdb_vectors::attribute_map(stored))
+            .unwrap()
+            .expect("an owned item");
         let got = serde_json::to_value(E::decode(&formatted).unwrap()).unwrap();
         let want = wire::to_plain_json(&wattdb_vectors::attribute_value(&result["M"]["data"]));
         if !same(&got, &want) {
-            failures.push(format!("{}: reads differ\n got: {got}\nwant: {want}", c.name));
+            failures.push(format!(
+                "{}: reads differ\n got: {got}\nwant: {want}",
+                c.name
+            ));
         }
         checked += 1;
     }
-    assert!(failures.is_empty(), "{vector}: {} of {checked} reads failed:\n{}", failures.len(), failures.join("\n"));
+    assert!(
+        failures.is_empty(),
+        "{vector}: {} of {checked} reads failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
     assert!(checked > 0, "{vector}: no read cases checked");
     checked
 }

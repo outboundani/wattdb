@@ -70,7 +70,11 @@ pub fn rename(rule: &str, s: &str) -> Option<String> {
 }
 
 pub fn ident(s: &str) -> Ident {
-    let s = if is_keyword(s) { format!("r#{s}") } else { s.to_string() };
+    let s = if is_keyword(s) {
+        format!("r#{s}")
+    } else {
+        s.to_string()
+    };
     syn::parse_str(&s).unwrap_or_else(|_| Ident::new("__invalid", Span::call_site()))
 }
 
@@ -137,7 +141,9 @@ pub fn option_inner(ty: &Type) -> Option<&Type> {
     if seg.ident != "Option" {
         return None;
     }
-    let PathArguments::AngleBracketed(args) = &seg.arguments else { return None };
+    let PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return None;
+    };
     match args.args.first()? {
         GenericArgument::Type(t) if args.args.len() == 1 => Some(t),
         _ => None,
@@ -151,7 +157,9 @@ pub fn vec_inner(ty: &Type) -> Option<&Type> {
     if seg.ident != "Vec" {
         return None;
     }
-    let PathArguments::AngleBracketed(args) = &seg.arguments else { return None };
+    let PathArguments::AngleBracketed(args) = &seg.arguments else {
+        return None;
+    };
     match args.args.first()? {
         GenericArgument::Type(t) => Some(t),
         _ => None,
@@ -161,6 +169,13 @@ pub fn vec_inner(ty: &Type) -> Option<&Type> {
 /// A type path's last identifier, with the path before it.
 pub fn err(span: Span, msg: impl std::fmt::Display) -> syn::Error {
     syn::Error::new(span, msg)
+}
+
+/// The `InCollection` id of a collection name (64-bit FNV-1a).
+pub fn collection_id(name: &str) -> u64 {
+    name.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+        (h ^ b as u64).wrapping_mul(0x100_0000_01b3)
+    })
 }
 
 #[cfg(test)]
@@ -178,9 +193,4 @@ mod tests {
         assert_eq!(rename("lowercase", "InProgress").unwrap(), "inprogress");
         assert_eq!(rename("kebab-case", "InProgress").unwrap(), "in-progress");
     }
-}
-
-/// The `InCollection` id of a collection name (64-bit FNV-1a).
-pub fn collection_id(name: &str) -> u64 {
-    name.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ b as u64).wrapping_mul(0x100_0000_01b3))
 }

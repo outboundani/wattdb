@@ -87,10 +87,11 @@ impl<E: Entity> Table<E> {
     }
 }
 
+/// One cancellation reason: its code, message and old item.
+type Reason = (String, String, Option<Attrs>);
+
 /// The transaction's error, when DynamoDB canceled it.
-fn canceled(
-    err: Error,
-) -> std::result::Result<(SdkError, Vec<(String, String, Option<Attrs>)>), Error> {
+fn canceled(err: Error) -> std::result::Result<(SdkError, Vec<Reason>), Error> {
     let Error::Sdk(e) = err else { return Err(err) };
     let reasons = match &*e {
         SdkError::TransactionCanceledException(tce) => tce
@@ -220,7 +221,10 @@ impl TxWrite {
                 .transpose()?;
             reasons.push(TxReason::new(res.code, res.message, res.rejected, item));
         }
-        Err(Error::TxCanceled(TxCanceledError { reasons, source }))
+        Err(Error::TxCanceled(Box::new(TxCanceledError {
+            reasons,
+            source,
+        })))
     }
 }
 
@@ -343,7 +347,10 @@ impl TxGet {
                         TxReason::new(code, msg, rejected, None)
                     })
                     .collect();
-                return Err(Error::TxCanceled(TxCanceledError { reasons, source }));
+                return Err(Error::TxCanceled(Box::new(TxCanceledError {
+                    reasons,
+                    source,
+                })));
             }
         };
         let responses = out.responses.unwrap_or_default();

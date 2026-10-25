@@ -34,7 +34,7 @@ pub enum Error {
     Conversion(String),
     /// A transaction was canceled; one reason per op.
     #[error(transparent)]
-    TxCanceled(TxCanceledError),
+    TxCanceled(Box<TxCanceledError>),
     /// Hydrate couldn't fetch these keys. Only the item streams (`all()`)
     /// return it, after the items they could read; `exec()` and `pages()`
     /// report them in the page.

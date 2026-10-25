@@ -7,15 +7,40 @@ use quote::{format_ident, quote};
 use syn::{DeriveInput, Ident, Result};
 
 use crate::attrs::{self, IndexOpts, KeyOpts, ProjectionOpts};
-use crate::fields::{self, Field, attribute_def, decode_struct, encode_struct, serde_attrs, serde_field, stored_of, suffixed};
+use crate::fields::{
+    self, Field, attribute_def, decode_struct, encode_struct, serde_attrs, serde_field, stored_of,
+    suffixed,
+};
 use crate::util::{err, ident, pascal, snake};
 
 /// Methods the generated client gets from `Table` (or adds itself); access
 /// patterns can't take these names.
 const RESERVED: &[&str] = &[
-    "get", "put", "create", "delete", "remove", "update", "patch", "upsert", "batch_get", "batch_put", "batch_delete",
-    "check", "find", "matching", "parse", "conv", "scan", "query", "scan_index", "name", "config", "definition",
-    "put_item", "new", "inner",
+    "get",
+    "put",
+    "create",
+    "delete",
+    "remove",
+    "update",
+    "patch",
+    "upsert",
+    "batch_get",
+    "batch_put",
+    "batch_delete",
+    "check",
+    "find",
+    "matching",
+    "parse",
+    "conv",
+    "scan",
+    "query",
+    "scan_index",
+    "name",
+    "config",
+    "definition",
+    "put_item",
+    "new",
+    "inner",
 ];
 
 struct Pattern<'a> {
@@ -44,7 +69,10 @@ fn key_fields<'a>(fields: &'a [Field], k: &KeyOpts) -> Result<Vec<&'a Field>> {
 }
 
 fn field_named<'a>(fields: &'a [Field], id: &Ident) -> Result<&'a Field> {
-    fields.iter().find(|f| f.ident == *id).ok_or_else(|| err(id.span(), format!("`{id}` isn't a field")))
+    fields
+        .iter()
+        .find(|f| f.ident == *id)
+        .ok_or_else(|| err(id.span(), format!("`{id}` isn't a field")))
 }
 
 fn template_vars(t: &str) -> Vec<String> {
@@ -78,7 +106,9 @@ fn convert_template(t: &syn::LitStr, names: &HashMap<String, String>) -> Result<
                 let stored = names
                     .get(name)
                     .or_else(|| names.values().find(|s| *s == name))
-                    .ok_or_else(|| err(t.span(), format!("template names unknown field `{name}`")))?;
+                    .ok_or_else(|| {
+                        err(t.span(), format!("template names unknown field `{name}`"))
+                    })?;
                 out.push_str(stored);
                 rest = after[j..].to_string();
             }
@@ -96,8 +126,13 @@ fn key_def(k: &KeyOpts, names: &HashMap<String, String>) -> Result<TokenStream> 
     let field = &k.field;
     let composite = match (&k.composite, &k.template) {
         (Some(c), _) => {
-            let c = c.iter().map(|id| stored_of(names, id)).collect::<Result<Vec<_>>>()?;
-            quote!(::core::option::Option::Some(::std::vec![#(#c.to_string()),*]))
+            let c = c
+                .iter()
+                .map(|id| stored_of(names, id))
+                .collect::<Result<Vec<_>>>()?;
+            quote!(::core::option::Option::Some(
+                ::std::vec![#(#c.to_string()),*]
+            ))
         }
         (None, Some(_)) => quote!(::core::option::Option::None),
         (None, None) => quote!(::core::option::Option::Some(::std::vec::Vec::new())),
@@ -119,7 +154,11 @@ fn key_def(k: &KeyOpts, names: &HashMap<String, String>) -> Result<TokenStream> 
     }))
 }
 
-fn index_def(ix: &IndexOpts, names: &HashMap<String, String>, partial: &Ident) -> Result<TokenStream> {
+fn index_def(
+    ix: &IndexOpts,
+    names: &HashMap<String, String>,
+    partial: &Ident,
+) -> Result<TokenStream> {
     let (pattern, index, scope) = (&ix.access_pattern, &ix.index, &ix.scope);
     let ty = match ix.ty.as_str() {
         "" | "isolated" => quote!(::wattdb::__private::IndexType::Isolated),
@@ -130,7 +169,9 @@ fn index_def(ix: &IndexOpts, names: &HashMap<String, String>, partial: &Ident) -
     let collections = &ix.collections;
     let sub = ix.sub_collections;
     let condition = match &ix.condition {
-        Some(c) => quote!(::core::option::Option::Some(::wattdb::__private::condition_fn::<#partial>(#c))),
+        Some(c) => {
+            quote!(::core::option::Option::Some(::wattdb::__private::condition_fn::<#partial>(#c)))
+        }
         None => quote!(::core::option::Option::None),
     };
     let pk = key_def(&ix.pk, names)?;
@@ -143,16 +184,23 @@ fn index_def(ix: &IndexOpts, names: &HashMap<String, String>, partial: &Ident) -
     };
     let projection = match &ix.projection {
         None => quote!(::core::option::Option::None),
-        Some(ProjectionOpts::Kind(k)) => quote!(::core::option::Option::Some(::wattdb::__private::Projection {
-            kind: #k.into(),
-            attributes: ::std::vec::Vec::new(),
-        })),
-        Some(ProjectionOpts::Include(ids)) => {
-            let a = ids.iter().map(|id| stored_of(names, id)).collect::<Result<Vec<_>>>()?;
+        Some(ProjectionOpts::Kind(k)) => {
             quote!(::core::option::Option::Some(::wattdb::__private::Projection {
-                kind: ::std::string::String::new(),
-                attributes: ::std::vec![#(#a.to_string()),*],
+                kind: #k.into(),
+                attributes: ::std::vec::Vec::new(),
             }))
+        }
+        Some(ProjectionOpts::Include(ids)) => {
+            let a = ids
+                .iter()
+                .map(|id| stored_of(names, id))
+                .collect::<Result<Vec<_>>>()?;
+            quote!(::core::option::Option::Some(
+                ::wattdb::__private::Projection {
+                    kind: ::std::string::String::new(),
+                    attributes: ::std::vec![#(#a.to_string()),*],
+                }
+            ))
         }
     };
     Ok(quote!(::wattdb::__private::IndexDef {
@@ -173,9 +221,18 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
     let c = attrs::container(&input.attrs)?;
     let name = &input.ident;
     let vis = &input.vis;
-    let entity = c.entity.clone().ok_or_else(|| err(name.span(), "missing #[wattdb(entity = \"...\")]"))?;
-    let version = c.version.clone().ok_or_else(|| err(name.span(), "missing #[wattdb(version = \"...\")]"))?;
-    let service = c.service.clone().ok_or_else(|| err(name.span(), "missing #[wattdb(service = ...)]"))?;
+    let entity = c
+        .entity
+        .clone()
+        .ok_or_else(|| err(name.span(), "missing #[wattdb(entity = \"...\")]"))?;
+    let version = c
+        .version
+        .clone()
+        .ok_or_else(|| err(name.span(), "missing #[wattdb(version = \"...\")]"))?;
+    let service = c
+        .service
+        .clone()
+        .ok_or_else(|| err(name.span(), "missing #[wattdb(service = ...)]"))?;
     let fields = fields::parse(&input, c.rename_all.as_deref())?;
     let names = fields::stored_names(&fields);
     let e = quote!(#name);
@@ -200,11 +257,23 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
     let table = patterns
         .iter()
         .find(|p| p.opts.index.is_empty())
-        .ok_or_else(|| err(name.span(), "the entity needs a table index: an index(...) without `index = \"...\"`"))?;
-    let index_defs = c.indexes.iter().map(|ix| index_def(ix, &names, &partial_ty)).collect::<Result<Vec<_>>>()?;
+        .ok_or_else(|| {
+            err(
+                name.span(),
+                "the entity needs a table index: an index(...) without `index = \"...\"`",
+            )
+        })?;
+    let index_defs = c
+        .indexes
+        .iter()
+        .map(|ix| index_def(ix, &names, &partial_ty))
+        .collect::<Result<Vec<_>>>()?;
 
     // Definition.
-    let attr_defs = fields.iter().map(|f| attribute_def(f, &quote!(#partial_ty), &names)).collect::<Result<Vec<_>>>()?;
+    let attr_defs = fields
+        .iter()
+        .map(|f| attribute_def(f, &quote!(#partial_ty), &names))
+        .collect::<Result<Vec<_>>>()?;
     let stored: Vec<&String> = fields.iter().map(|f| &f.stored).collect();
 
     // Generated types.
@@ -268,16 +337,25 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
         let pattern = &p.opts.access_pattern;
         let method = snake(pattern);
         if RESERVED.contains(&method.as_str()) {
-            return Err(err(p.opts.span, format!("access pattern {pattern:?} clashes with the client's `{method}` method")));
+            return Err(err(
+                p.opts.span,
+                format!("access pattern {pattern:?} clashes with the client's `{method}` method"),
+            ));
         }
         let method_id = ident(&method);
         let pp = pascal(pattern);
         if p.opts.ty != "composite" {
             let scan = format_ident!("scan_{}", method);
             if RESERVED.contains(&scan.to_string().as_str()) {
-                return Err(err(p.opts.span, format!("access pattern {pattern:?} clashes with `{scan}`")));
+                return Err(err(
+                    p.opts.span,
+                    format!("access pattern {pattern:?} clashes with `{scan}`"),
+                ));
             }
-            let doc = format!("Reads every {} item in the {pattern} index.", entity.value());
+            let doc = format!(
+                "Reads every {} item in the {pattern} index.",
+                entity.value()
+            );
             client_methods.push(quote! {
                 #[doc = #doc]
                 pub fn #scan(&self) -> ::wattdb::Scan<#e> { self.table.scan_index(#pattern) }
@@ -470,25 +548,41 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
 
 /// The sort-key steps of a query: one holder and one step per composite
 /// (decision D29).
-fn query_steps(name: &Ident, pp: &str, pattern: &str, sk: &[&Field], vis: &syn::Visibility, e: &TokenStream) -> TokenStream {
+fn query_steps(
+    name: &Ident,
+    pp: &str,
+    pattern: &str,
+    sk: &[&Field],
+    vis: &syn::Visibility,
+    e: &TokenStream,
+) -> TokenStream {
     let mut out = Vec::new();
     for (i, f) in sk.iter().enumerate() {
         let holder = if i == 0 {
             format_ident!("{}{}Query", name, pp)
         } else {
-            format_ident!("{}{}Query{}", name, pp, pascal(&sk[i - 1].ident.to_string()))
+            format_ident!(
+                "{}{}Query{}",
+                name,
+                pp,
+                pascal(&sk[i - 1].ident.to_string())
+            )
         };
         let sp = pascal(&f.ident.to_string());
         let step = format_ident!("{}{}{}Step", name, pp, sp);
         let method = f.descriptor();
         let stored = &f.stored;
         let inner = &f.inner;
-        let enc = |v: TokenStream| f.encode_value(quote!(&::core::convert::Into::<#inner>::into(#v)));
+        let enc =
+            |v: TokenStream| f.encode_value(quote!(&::core::convert::Into::<#inner>::into(#v)));
         let (ev, lo, hi) = (enc(quote!(v)), enc(quote!(lo)), enc(quote!(hi)));
         let holder_doc = if i == 0 {
             format!("A {pattern} query; `{method}()` adds a sort-key condition.")
         } else {
-            format!("A {pattern} query with `{}` fixed; `{method}()` adds a sort-key condition.", sk[i - 1].ident)
+            format!(
+                "A {pattern} query with `{}` fixed; `{method}()` adds a sort-key condition.",
+                sk[i - 1].ident
+            )
         };
         let eq = if i < sk.len() - 1 {
             let next = format_ident!("{}{}Query{}", name, pp, sp);
@@ -540,7 +634,13 @@ fn query_steps(name: &Ident, pp: &str, pattern: &str, sk: &[&Field], vis: &syn::
 
 /// The key and query types of one collection the entity is in (decision
 /// D43). The collection derive uses the first member's.
-fn collection_items(name: &Ident, coll: &str, p: &Pattern<'_>, vis: &syn::Visibility, serde_on: bool) -> TokenStream {
+fn collection_items(
+    name: &Ident,
+    coll: &str,
+    p: &Pattern<'_>,
+    vis: &syn::Visibility,
+    serde_on: bool,
+) -> TokenStream {
     let cp = pascal(coll);
     let key = format_ident!("{}{}CollectionKey", name, cp);
     let query = format_ident!("{}{}CollectionQuery", name, cp);
@@ -558,7 +658,7 @@ fn collection_items(name: &Ident, coll: &str, p: &Pattern<'_>, vis: &syn::Visibi
     });
     let key_doc = format!("The {coll} collection's partition-key composites.");
     let query_doc = format!("A {coll} collection query.");
-    let steps = if p.opts.ty != "" && p.opts.ty != "isolated" && !p.sk.is_empty() {
+    let steps = if !p.opts.ty.is_empty() && p.opts.ty != "isolated" && !p.sk.is_empty() {
         collection_steps(name, &cp, coll, &p.sk, vis)
     } else {
         quote!()
@@ -600,21 +700,33 @@ fn collection_items(name: &Ident, coll: &str, p: &Pattern<'_>, vis: &syn::Visibi
     }
 }
 
-fn collection_steps(name: &Ident, cp: &str, coll: &str, sk: &[&Field], vis: &syn::Visibility) -> TokenStream {
+fn collection_steps(
+    name: &Ident,
+    cp: &str,
+    coll: &str,
+    sk: &[&Field],
+    vis: &syn::Visibility,
+) -> TokenStream {
     let mut out = Vec::new();
     let full = quote!(::wattdb::CollectionQuery<R>);
     for (i, f) in sk.iter().enumerate() {
         let holder = if i == 0 {
             format_ident!("{}{}CollectionQuery", name, cp)
         } else {
-            format_ident!("{}{}CollectionQuery{}", name, cp, pascal(&sk[i - 1].ident.to_string()))
+            format_ident!(
+                "{}{}CollectionQuery{}",
+                name,
+                cp,
+                pascal(&sk[i - 1].ident.to_string())
+            )
         };
         let sp = pascal(&f.ident.to_string());
         let step = format_ident!("{}{}Collection{}Step", name, cp, sp);
         let method = f.descriptor();
         let stored = &f.stored;
         let inner = &f.inner;
-        let enc = |v: TokenStream| f.encode_value(quote!(&::core::convert::Into::<#inner>::into(#v)));
+        let enc =
+            |v: TokenStream| f.encode_value(quote!(&::core::convert::Into::<#inner>::into(#v)));
         let (ev, lo, hi) = (enc(quote!(v)), enc(quote!(lo)), enc(quote!(hi)));
         let eq = if i < sk.len() - 1 {
             let next = format_ident!("{}{}CollectionQuery{}", name, cp, sp);
@@ -631,7 +743,10 @@ fn collection_steps(name: &Ident, cp: &str, coll: &str, sk: &[&Field], vis: &syn
         let holder_def = if i == 0 {
             quote!()
         } else {
-            let doc = format!("A {coll} collection query with `{}` fixed.", sk[i - 1].ident);
+            let doc = format!(
+                "A {coll} collection query with `{}` fixed.",
+                sk[i - 1].ident
+            );
             quote! {
                 #[doc = #doc]
                 #vis struct #holder<R: ::wattdb::CollectionResult>(::wattdb::CollectionQuery<R>);

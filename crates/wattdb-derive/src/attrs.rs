@@ -33,7 +33,10 @@ fn strings(meta: &ParseNestedMeta) -> Result<Vec<String>> {
 }
 
 fn key_name(meta: &ParseNestedMeta) -> String {
-    meta.path.get_ident().map(|i| i.to_string()).unwrap_or_default()
+    meta.path
+        .get_ident()
+        .map(|i| i.to_string())
+        .unwrap_or_default()
 }
 
 /// A pk or sk.
@@ -87,7 +90,11 @@ pub struct IndexOpts {
 
 fn parse_index(meta: &ParseNestedMeta) -> Result<IndexOpts> {
     let mut ix = IndexOpts {
-        span: meta.path.get_ident().map(|i| i.span()).unwrap_or_else(Span::call_site),
+        span: meta
+            .path
+            .get_ident()
+            .map(|i| i.span())
+            .unwrap_or_else(Span::call_site),
         access_pattern: String::new(),
         index: String::new(),
         ty: String::new(),
@@ -138,7 +145,10 @@ fn parse_index(meta: &ParseNestedMeta) -> Result<IndexOpts> {
         return Err(meta.error("index needs an access_pattern"));
     }
     if !has_pk {
-        return Err(meta.error(format!("access pattern {:?} needs a pk(...)", ix.access_pattern)));
+        return Err(meta.error(format!(
+            "access pattern {:?} needs a pk(...)",
+            ix.access_pattern
+        )));
     }
     Ok(ix)
 }
@@ -217,7 +227,9 @@ pub fn field(attrs: &[Attribute]) -> Result<FieldOpts> {
                         match key_name(&p).as_str() {
                             "length" => length = Some(p.value()?.parse::<LitInt>()?),
                             "char" => ch = Some(string(&p)?),
-                            other => return Err(p.error(format!("unknown padding option `{other}`"))),
+                            other => {
+                                return Err(p.error(format!("unknown padding option `{other}`")));
+                            }
                         }
                         Ok(())
                     })?;

@@ -51,8 +51,8 @@ fn check_params(m: &Model, table: &str, c: &Case) -> Result<(), String> {
 fn check_go(m: &Model, table: &str, c: &Case) -> Result<(), String> {
     let Some(go) = &c.go else { return Ok(()) };
     let req = build_write(m, &c.chain).build(table, options_of(c.go_options.as_ref(), true));
-    if go.error.is_some() && go.requests.is_empty() {
-        let msg = &go.error.as_ref().unwrap().message;
+    if let (Some(e), true) = (&go.error, go.requests.is_empty()) {
+        let msg = &e.message;
         if !marshal_error(msg) && req.is_ok() {
             return Err(format!(
                 "ElectroDB failed ({msg}) but wattdb built a request"

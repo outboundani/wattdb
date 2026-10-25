@@ -36,14 +36,24 @@ async fn migrate() -> Result<(), Box<dyn std::error::Error>> {
                 task::Status::Open => taskv2::Status::Open,
                 task::Status::Done => taskv2::Status::Done,
             },
-            priority: old.priority.filter(|p| *p >= 20).map(|_| taskv2::Priority::High),
+            priority: old
+                .priority
+                .filter(|p| *p >= 20)
+                .map(|_| taskv2::Priority::High),
             assignees: old.assignee.map(|a| vec![a]),
         })
     })
     .await?;
     assert_eq!(n, 40);
 
-    let got = v2.get(taskv2::TaskKey { project_id: "p1".into(), task_id: "t30".into() }).exec().await?.unwrap();
+    let got = v2
+        .get(taskv2::TaskKey {
+            project_id: "p1".into(),
+            task_id: "t30".into(),
+        })
+        .exec()
+        .await?
+        .unwrap();
     assert_eq!(got.priority, taskv2::Priority::High);
     assert_eq!(got.assignees, Some(vec!["ada".to_string()]));
     // Each version only sees its own items.

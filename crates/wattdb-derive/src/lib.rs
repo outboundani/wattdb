@@ -12,9 +12,14 @@ mod util;
 use proc_macro::TokenStream;
 use syn::{DeriveInput, parse_macro_input};
 
-fn run(input: TokenStream, f: fn(DeriveInput) -> syn::Result<proc_macro2::TokenStream>) -> TokenStream {
+fn run(
+    input: TokenStream,
+    f: fn(DeriveInput) -> syn::Result<proc_macro2::TokenStream>,
+) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    f(input).unwrap_or_else(syn::Error::into_compile_error).into()
+    f(input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
 }
 
 /// Derives an entity: its `Input`, `Partial`, `Key` and client types, and a

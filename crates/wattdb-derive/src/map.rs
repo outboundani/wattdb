@@ -15,7 +15,10 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
     let names = fields::stored_names(&fields);
     let attr_ty = suffixed(name, "Attr");
 
-    let props = fields.iter().map(|f| attribute_def(f, &quote!(#name), &names)).collect::<Result<Vec<_>>>()?;
+    let props = fields
+        .iter()
+        .map(|f| attribute_def(f, &quote!(#name), &names))
+        .collect::<Result<Vec<_>>>()?;
     let decode = decode_struct(&quote!(#name), &fields, false);
     let encode = encode_struct(quote!(self), &fields, |f| f.optional);
     let e = quote!(E);
@@ -31,7 +34,8 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
             }
         }
     });
-    let doc = format!("Describes a `{name}` map attribute; its methods address the map's properties.");
+    let doc =
+        format!("Describes a `{name}` map attribute; its methods address the map's properties.");
 
     Ok(quote! {
         impl ::wattdb::FieldType for #name {

@@ -21,7 +21,10 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
         if o.other {
             let one_string = matches!(&v.fields, Fields::Unnamed(f) if f.unnamed.len() == 1);
             if !one_string || o.rename.is_some() {
-                return Err(err(v.ident.span(), "an `other` variant holds the value: `Other(String)`"));
+                return Err(err(
+                    v.ident.span(),
+                    "an `other` variant holds the value: `Other(String)`",
+                ));
             }
             if other.replace(&v.ident).is_some() {
                 return Err(err(v.ident.span(), "only one variant can be `other`"));
@@ -29,7 +32,10 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
             continue;
         }
         if !matches!(v.fields, Fields::Unit) {
-            return Err(err(v.ident.span(), "enum variants can't hold data, except one `#[wattdb(other)]` variant"));
+            return Err(err(
+                v.ident.span(),
+                "enum variants can't hold data, except one `#[wattdb(other)]` variant",
+            ));
         }
         let value = match (o.rename, &c.rename_all) {
             (Some(r), _) => r,
@@ -38,15 +44,26 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
             (None, None) => v.ident.to_string(),
         };
         if values.contains(&value) {
-            return Err(err(v.ident.span(), format!("value {value:?} is used twice")));
+            return Err(err(
+                v.ident.span(),
+                format!("value {value:?} is used twice"),
+            ));
         }
         variants.push(&v.ident);
         values.push(value);
     }
     let msg = format!("{{:?}} isn't a {name} value");
     let (other_str, other_parse) = match other {
-        Some(o) => (quote!(#name::#o(s) => s.as_str(),), quote!(::core::result::Result::Ok(#name::#o(s.to_string())))),
-        None => (quote!(), quote!(::core::result::Result::Err(::wattdb::Error::Decode(::std::format!(#msg, s))))),
+        Some(o) => (
+            quote!(#name::#o(s) => s.as_str(),),
+            quote!(::core::result::Result::Ok(#name::#o(s.to_string()))),
+        ),
+        None => (
+            quote!(),
+            quote!(::core::result::Result::Err(::wattdb::Error::Decode(
+                ::std::format!(#msg, s)
+            ))),
+        ),
     };
     let values_doc = if other.is_some() {
         "Every named value, in declaration order (not the `other` variant)."
@@ -89,7 +106,7 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
 
         impl ::core::fmt::Display for #name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                f.write_str(self.as_str())
+                f.pad(self.as_str())
             }
         }
 

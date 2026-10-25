@@ -10,6 +10,9 @@ readme = "README.md"
 keywords = ["dynamodb", "electrodb", "single-table", "aws"]
 categories = ["database"]
 
+[lints]
+workspace = true
+
 [features]
 default = ["chrono", "uuid", "json", "tracing"]
 ## DateTime<Utc> attributes and the JsIso codec.
@@ -43,3 +46,15 @@ http.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing-subscriber.workspace = true
 wattdb-vectors.workspace = true
+
+[[example]]
+name = "taskapp"
+required-features = ["chrono", "tracing"]
+
+[[test]]
+name = "models"
+required-features = ["json"]
+
+[[test]]
+name = "pipeline"
+required-features = ["json"]

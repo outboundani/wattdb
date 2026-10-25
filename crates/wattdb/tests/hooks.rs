@@ -33,7 +33,10 @@ impl Logs {
 }
 
 fn key() -> MemberKey {
-    MemberKey { org_id: "O1".into(), member_id: "M1".into() }
+    MemberKey {
+        org_id: "O1".into(),
+        member_id: "M1".into(),
+    }
 }
 
 #[tokio::test]
@@ -48,11 +51,16 @@ async fn hooks() -> Result<(), Box<dyn std::error::Error>> {
     let _guard = tracing::subscriber::set_default(subscriber);
 
     let (client, fake) = common::client(&[]);
-    let calls: Arc<Mutex<Vec<(&'static str, Option<String>, Option<String>)>>> = Arc::default();
+    type Seen = (&'static str, Option<String>, Option<String>);
+    let calls: Arc<Mutex<Vec<Seen>>> = Arc::default();
     let seen = calls.clone();
     let cfg = Config::new(client.clone())
         .with_hook(move |mut call: Call, next: Next| {
-            seen.lock().unwrap().push((call.operation(), call.entity.clone(), call.table().map(String::from)));
+            seen.lock().unwrap().push((
+                call.operation(),
+                call.entity.clone(),
+                call.table().map(String::from),
+            ));
             if let Request::GetItem(input) = &mut call.request {
                 input.consistent_read = Some(true); // hooks may change the request
             }
@@ -62,27 +70,47 @@ async fn hooks() -> Result<(), Box<dyn std::error::Error>> {
 
     let m = MemberClient::new(&cfg, "table")?;
     assert_eq!(m.get(key()).exec().await?, None);
-    TeamClient::new(&cfg, "table")?.query(TeamKey { org_id: "O1".into() }).exec().await?;
+    TeamClient::new(&cfg, "table")?
+        .query(TeamKey {
+            org_id: "O1".into(),
+        })
+        .exec()
+        .await?;
     m.batch_get([key()]).exec().await?;
 
     let want = [
-        ("GetItem", Some("member".to_string()), Some("table".to_string())),
+        (
+            "GetItem",
+            Some("member".to_string()),
+            Some("table".to_string()),
+        ),
         ("Query", None, Some("table".to_string())),
         ("BatchGetItem", Some("member".to_string()), None),
     ];
     assert_eq!(*calls.lock().unwrap(), want);
     let sent = fake.sent();
-    assert_eq!(sent[0].body["ConsistentRead"], true, "hook change not sent: {}", sent[0].body);
+    assert_eq!(
+        sent[0].body["ConsistentRead"], true,
+        "hook change not sent: {}",
+        sent[0].body
+    );
     let text = logs.text();
     assert_eq!(text.matches("wattdb request").count(), 3, "logs:\n{text}");
-    assert!(text.contains("operation=\"GetItem\" entity=\"member\""), "logs:\n{text}");
+    assert!(
+        text.contains("operation=\"GetItem\" entity=\"member\""),
+        "logs:\n{text}"
+    );
 
     // A hook can answer without sending.
     let blocked = Config::new(client).with_hook(|_: Call, _: Next| async {
         Err::<wattdb::Response, _>(Error::Hook("blocked".into()))
     });
     let before = fake.sent().len();
-    let err = MemberClient::new(&blocked, "table")?.get(key()).exec().await.unwrap_err();
+    let err = MemberClient::new(&blocked, "table")?
+        .get(key())
+        .exec()
+        .await
+        .unwrap_err();
     assert_eq!(err.to_string(), "blocked");
     assert_eq!(fake.sent().len(), before, "blocked request was sent");
     Ok(())

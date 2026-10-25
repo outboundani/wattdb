@@ -44,3 +44,8 @@ syn = { version = "2", features = ["full", "extra-traits"] }
 http = "1"
 testcontainers = "0.25"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
+
+[workspace.lints.clippy]
+# Misfires on derive helper attributes, which repeat composites across
+# indexes: #[wattdb(index(.. composite(org_id) ..))] twice.
+duplicated_attributes = "allow"

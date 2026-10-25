@@ -32,7 +32,10 @@ impl Field {
 
     /// The descriptor function's name.
     pub fn descriptor(&self) -> Ident {
-        self.opts.descriptor.clone().unwrap_or_else(|| self.ident.clone())
+        self.opts
+            .descriptor
+            .clone()
+            .unwrap_or_else(|| self.ident.clone())
     }
 
     /// Encodes `value` (a `&T`) for a key condition.
@@ -50,13 +53,22 @@ impl Field {
 /// Parses a struct's named fields.
 pub fn parse(input: &DeriveInput, rename_all: Option<&str>) -> Result<Vec<Field>> {
     let Data::Struct(s) = &input.data else {
-        return Err(err(input.ident.span(), "wattdb derives need a struct with named fields"));
+        return Err(err(
+            input.ident.span(),
+            "wattdb derives need a struct with named fields",
+        ));
     };
     let Fields::Named(named) = &s.fields else {
-        return Err(err(input.ident.span(), "wattdb derives need a struct with named fields"));
+        return Err(err(
+            input.ident.span(),
+            "wattdb derives need a struct with named fields",
+        ));
     };
     if !input.generics.params.is_empty() {
-        return Err(err(input.generics.span(), "wattdb derives don't support generic structs"));
+        return Err(err(
+            input.generics.span(),
+            "wattdb derives don't support generic structs",
+        ));
     }
     let mut out = Vec::new();
     for f in &named.named {
@@ -66,7 +78,8 @@ pub fn parse(input: &DeriveInput, rename_all: Option<&str>) -> Result<Vec<Field>
         let name = name.strip_prefix("r#").unwrap_or(&name).to_string();
         let stored = match (&opts.field, rename_all) {
             (Some(s), _) => s.clone(),
-            (None, Some(rule)) => rename(rule, &name).ok_or_else(|| err(f.span(), format!("unknown rename_all rule {rule:?}")))?,
+            (None, Some(rule)) => rename(rule, &name)
+                .ok_or_else(|| err(f.span(), format!("unknown rename_all rule {rule:?}")))?,
             (None, None) => name,
         };
         let (inner, optional) = match option_inner(&f.ty) {
@@ -84,12 +97,22 @@ pub fn parse(input: &DeriveInput, rename_all: Option<&str>) -> Result<Vec<Field>
             (None, true) => quote!(::wattdb::codec::VecSet),
             (None, false) => quote!(::wattdb::DefaultCodec),
         };
-        out.push(Field { ident, inner, optional, stored, opts, codec });
+        out.push(Field {
+            ident,
+            inner,
+            optional,
+            stored,
+            opts,
+            codec,
+        });
     }
     let mut seen = HashMap::new();
     for f in &out {
         if let Some(prev) = seen.insert(f.stored.clone(), f.ident.to_string()) {
-            return Err(err(f.ident.span(), format!("field {:?} is already used by `{prev}`", f.stored)));
+            return Err(err(
+                f.ident.span(),
+                format!("field {:?} is already used by `{prev}`", f.stored),
+            ));
         }
     }
     Ok(out)
@@ -97,16 +120,26 @@ pub fn parse(input: &DeriveInput, rename_all: Option<&str>) -> Result<Vec<Field>
 
 /// Maps Rust field names to stored names.
 pub fn stored_names(fields: &[Field]) -> HashMap<String, String> {
-    fields.iter().map(|f| (f.ident.to_string(), f.stored.clone())).collect()
+    fields
+        .iter()
+        .map(|f| (f.ident.to_string(), f.stored.clone()))
+        .collect()
 }
 
 pub fn stored_of(names: &HashMap<String, String>, id: &Ident) -> Result<String> {
-    names.get(&id.to_string()).cloned().ok_or_else(|| err(id.span(), format!("`{id}` isn't a field")))
+    names
+        .get(&id.to_string())
+        .cloned()
+        .ok_or_else(|| err(id.span(), format!("`{id}` isn't a field")))
 }
 
 /// The expression building a field's attribute definition. Callbacks
 /// receive `siblings` (an entity's Partial, or the map struct).
-pub fn attribute_def(f: &Field, siblings: &TokenStream, names: &HashMap<String, String>) -> Result<TokenStream> {
+pub fn attribute_def(
+    f: &Field,
+    siblings: &TokenStream,
+    names: &HashMap<String, String>,
+) -> Result<TokenStream> {
     let (inner, codec, stored) = (&f.inner, &f.codec, &f.stored);
     let o = &f.opts;
     let mut set = Vec::new();
@@ -145,14 +178,19 @@ pub fn attribute_def(f: &Field, siblings: &TokenStream, names: &HashMap<String, 
         set.push(quote!(a.validate_regex = ::core::option::Option::Some(::wattdb::__private::regex(#r));));
     }
     if !o.watch.is_empty() {
-        let w = o.watch.iter().map(|id| stored_of(names, id)).collect::<Result<Vec<_>>>()?;
+        let w = o
+            .watch
+            .iter()
+            .map(|id| stored_of(names, id))
+            .collect::<Result<Vec<_>>>()?;
         set.push(quote!(a.watch = ::std::vec![#(#w.to_string()),*];));
     }
     if o.watch_all {
         set.push(quote!(a.watch_all = true;));
     }
     if o.items_validate.is_some() || o.items_validate_regex.is_some() {
-        let item = vec_inner(inner).ok_or_else(|| err(f.ident.span(), "`items(...)` needs a Vec"))?;
+        let item =
+            vec_inner(inner).ok_or_else(|| err(f.ident.span(), "`items(...)` needs a Vec"))?;
         let mut it = Vec::new();
         if let Some(v) = &o.items_validate {
             it.push(quote!(items.validate = ::core::option::Option::Some(::wattdb::__private::validate_fn::<#item, ::wattdb::DefaultCodec, _>(#v));));
@@ -175,7 +213,9 @@ pub fn attribute_def(f: &Field, siblings: &TokenStream, names: &HashMap<String, 
 /// Checks a `validate_regex` pattern when the schema compiles (Rust regex
 /// syntax).
 fn check_regex(r: &syn::LitStr) -> Result<()> {
-    regex::Regex::new(&r.value()).map(|_| ()).map_err(|e| err(r.span(), format!("invalid validate_regex: {e}")))
+    regex::Regex::new(&r.value())
+        .map(|_| ())
+        .map_err(|e| err(r.span(), format!("invalid validate_regex: {e}")))
 }
 
 /// Decodes the fields of `ty` from `attrs`, keeping the declared shapes:
@@ -193,7 +233,11 @@ pub fn decode_struct(ty: &TokenStream, fields: &[Field], all_optional: bool) -> 
 }
 
 /// Encodes `src`'s fields; `optional(f)` says which are `Option`s there.
-pub fn encode_struct(src: TokenStream, fields: &[Field], optional: impl Fn(&Field) -> bool) -> TokenStream {
+pub fn encode_struct(
+    src: TokenStream,
+    fields: &[Field],
+    optional: impl Fn(&Field) -> bool,
+) -> TokenStream {
     let stmts = fields.iter().map(|f| {
         let (ident, inner, codec, stored) = (&f.ident, &f.inner, &f.codec, &f.stored);
         if optional(f) {

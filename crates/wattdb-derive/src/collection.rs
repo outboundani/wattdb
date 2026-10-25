@@ -12,16 +12,26 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
     let c = attrs::container(&input.attrs)?;
     let name = &input.ident;
     let vis = &input.vis;
-    let coll = c.collection.ok_or_else(|| err(name.span(), "missing #[wattdb(collection = \"...\")]"))?;
+    let coll = c
+        .collection
+        .ok_or_else(|| err(name.span(), "missing #[wattdb(collection = \"...\")]"))?;
     let Data::Struct(s) = &input.data else {
         return Err(err(name.span(), "#[derive(Collection)] needs a struct"));
     };
     let Fields::Named(named) = &s.fields else {
-        return Err(err(name.span(), "#[derive(Collection)] needs named fields, one Vec per member entity"));
+        return Err(err(
+            name.span(),
+            "#[derive(Collection)] needs named fields, one Vec per member entity",
+        ));
     };
     let mut members = Vec::new();
     for f in &named.named {
-        let ty = vec_inner(&f.ty).ok_or_else(|| err(f.ident.as_ref().unwrap().span(), "each field must be a Vec of a member entity"))?;
+        let ty = vec_inner(&f.ty).ok_or_else(|| {
+            err(
+                f.ident.as_ref().unwrap().span(),
+                "each field must be a Vec of a member entity",
+            )
+        })?;
         members.push((f.ident.clone().unwrap(), ty.clone()));
     }
     let Some((_, first)) = members.first() else {
@@ -32,11 +42,15 @@ pub fn derive(input: DeriveInput) -> Result<TokenStream> {
     let key_alias = suffixed(name, "Key");
     let client = suffixed(name, "Client");
     let tys: Vec<_> = members.iter().map(|(_, t)| t).collect();
-    let pushes = members.iter().enumerate().map(|(i, (f, t))| {
-        quote!(#i => self.#f.push(<#t as ::wattdb::Entity>::decode(item)?),)
-    });
+    let pushes = members
+        .iter()
+        .enumerate()
+        .map(|(i, (f, t))| quote!(#i => self.#f.push(<#t as ::wattdb::Entity>::decode(item)?),));
     let doc = format!("Queries the {} collection in one table.", coll.value());
-    let key_doc = format!("The {} collection's partition-key composites.", coll.value());
+    let key_doc = format!(
+        "The {} collection's partition-key composites.",
+        coll.value()
+    );
     Ok(quote! {
         impl ::wattdb::CollectionResult for #name {
             const NAME: &'static str = #coll;

@@ -322,8 +322,8 @@ pub(crate) fn index_impact(
     let mut out = Impact::default();
 
     fn note_type(out: &mut Impact, ix: &Index, kt: KeyType) {
-        if !out.types.contains_key(&ix.id) {
-            out.types.insert(ix.id, BTreeMap::new());
+        if let std::collections::hash_map::Entry::Vacant(e) = out.types.entry(ix.id) {
+            e.insert(BTreeMap::new());
             out.order.push(ix.id);
         }
         out.types
