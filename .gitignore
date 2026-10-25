@@ -3,3 +3,6 @@
 
 # Node dependencies for tools/recordvectors
 node_modules/
+
+# Rust build output
+/target/

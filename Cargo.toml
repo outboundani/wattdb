@@ -1,0 +1,51 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.94.1"
+license = "MIT"
+repository = "https://github.com/outboundani/wattdb"
+
+[workspace.dependencies]
+# Workspace crates
+wattdb = { path = "crates/wattdb", version = "0.1.0" }
+wattdb-derive = { path = "crates/wattdb-derive", version = "0.1.0" }
+wattdb-engine = { path = "crates/wattdb-engine", version = "0.1.0" }
+wattdb-integration = { path = "crates/wattdb-integration" }
+wattdb-vectors = { path = "crates/wattdb-vectors" }
+
+# Engine
+base64 = "0.22"
+indexmap = "2"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "raw_value"] }
+thiserror = "2"
+
+# Runtime
+aws-sdk-dynamodb = "1"
+aws-smithy-runtime-api = { version = "1", features = ["client", "http-1x"] }
+aws-smithy-types = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+futures = "0.3"
+tokio = { version = "1", features = ["time"] }
+tracing = "0.1"
+uuid = "1"
+
+# Derive
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full", "extra-traits"] }
+
+# Tests
+http = "1"
+testcontainers = "0.25"
+tracing-subscriber = { version = "0.3", features = ["fmt"] }
+
+[workspace.lints.clippy]
+# Misfires on derive helper attributes, which repeat composites across
+# indexes: #[wattdb(index(.. composite(org_id) ..))] twice.
+duplicated_attributes = "allow"

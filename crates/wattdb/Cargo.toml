@@ -1,0 +1,60 @@
+[package]
+name = "wattdb"
+description = "A strongly typed DynamoDB library for Rust that reproduces ElectroDB 3.9 byte for byte."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["dynamodb", "electrodb", "single-table", "aws"]
+categories = ["database"]
+
+[lints]
+workspace = true
+
+[features]
+default = ["chrono", "uuid", "json", "tracing"]
+## DateTime<Utc> attributes and the JsIso codec.
+chrono = ["dep:chrono"]
+## Uuid attributes and the UuidString codec.
+uuid = ["dep:uuid"]
+## serde_json::Value attributes and the Serde codec.
+json = []
+## The tracing request hook.
+tracing = ["dep:tracing"]
+
+[dependencies]
+aws-sdk-dynamodb.workspace = true
+aws-smithy-types.workspace = true
+chrono = { workspace = true, optional = true }
+futures.workspace = true
+indexmap.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+wattdb-derive.workspace = true
+wattdb-engine.workspace = true
+
+[dev-dependencies]
+aws-smithy-runtime-api.workspace = true
+http.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tracing-subscriber.workspace = true
+wattdb-vectors.workspace = true
+
+[[example]]
+name = "taskapp"
+required-features = ["chrono", "tracing"]
+
+[[test]]
+name = "models"
+required-features = ["json"]
+
+[[test]]
+name = "pipeline"
+required-features = ["json"]

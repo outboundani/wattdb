@@ -1,0 +1,20 @@
+[package]
+name = "wattdb-derive"
+description = "Derive macros for wattdb entities, maps, enums and collections."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+regex.workspace = true
+syn.workspace = true

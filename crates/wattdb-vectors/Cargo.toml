@@ -1,0 +1,15 @@
+[package]
+name = "wattdb-vectors"
+description = "Loads wattdb's recorded ElectroDB vectors for tests."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+regex.workspace = true
+serde_json = { workspace = true, features = ["arbitrary_precision"] }
+wattdb-engine.workspace = true
